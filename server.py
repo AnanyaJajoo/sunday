@@ -18,7 +18,7 @@ from calendar_manager import CalendarManager
 from config import Config
 from day_planner import format_schedule, plan_day
 from errors import ConfigurationError
-from pipeline import run_pipeline
+from pipeline import run_pipeline, send_due_leave_alerts
 
 log = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -85,6 +85,15 @@ async def process_emails(request: Request):
     try:
         _ensure_pipeline_ready()
         results = await run_pipeline()
+        leave_alerts = await send_due_leave_alerts()
+        if leave_alerts:
+            failures = sum(1 for result in leave_alerts if "error" in result)
+            log.info(
+                "Handled %d leave alert(s) via API (%d succeeded, %d failed)",
+                len(leave_alerts),
+                len(leave_alerts) - failures,
+                failures,
+            )
         return {"processed": len(results), "results": results}
     except ConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

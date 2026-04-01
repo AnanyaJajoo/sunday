@@ -11,7 +11,7 @@ import logging
 
 from config import Config
 from errors import ConfigurationError
-from pipeline import run_pipeline
+from pipeline import run_pipeline, send_due_leave_alerts
 
 logging.basicConfig(
     level=getattr(logging, Config.log_level.upper(), logging.INFO),
@@ -55,6 +55,16 @@ async def main() -> None:
                     "Handled %d email(s) this cycle (%d succeeded, %d failed)",
                     len(results),
                     len(results) - failures,
+                    failures,
+                )
+
+            leave_alerts = await send_due_leave_alerts()
+            if leave_alerts:
+                failures = sum(1 for result in leave_alerts if "error" in result)
+                log.info(
+                    "Handled %d leave alert(s) this cycle (%d succeeded, %d failed)",
+                    len(leave_alerts),
+                    len(leave_alerts) - failures,
                     failures,
                 )
         except Exception as exc:

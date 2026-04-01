@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from errors import MessagingDeliveryError
-from messenger import format_summary, send_summary
+from messenger import format_leave_alert, format_summary, send_summary, send_text_message
 
 
 def test_format_summary_for_event_is_informal_without_inline_email_link(monkeypatch):
@@ -52,6 +52,18 @@ def test_format_summary_separates_notes_with_blank_line(monkeypatch):
     )
 
     assert "\n\nnote: Used fallback origin instead." in message
+
+
+def test_format_leave_alert_uses_urgent_text_and_location():
+    message = format_leave_alert(
+        {
+            "summary": "Dinner meeting with Aryan Gupta",
+            "location": "Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)",
+        }
+    )
+
+    assert message.startswith("‼️ hey, it's time to leave for dinner at oozu ramen w/ aryan!")
+    assert "location: Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)" in message
 
 
 @pytest.mark.anyio
@@ -131,3 +143,13 @@ async def test_send_summary_requires_configured_channel(monkeypatch):
 
     with pytest.raises(MessagingDeliveryError):
         await send_summary({"summary": "Hello", "urgency": "none", "can_wait": True})
+
+
+@pytest.mark.anyio
+async def test_send_text_message_requires_configured_channel(monkeypatch):
+    monkeypatch.setattr("messenger.Config.telegram_token", "")
+    monkeypatch.setattr("messenger.Config.telegram_chat_id", "")
+    monkeypatch.setattr("messenger.Config.imessage_enabled", False)
+
+    with pytest.raises(MessagingDeliveryError):
+        await send_text_message("hello")

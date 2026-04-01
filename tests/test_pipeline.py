@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 import pytest
 
+from calendar_manager import CalendarManager
 from errors import MessagingDeliveryError, TravelEstimationError
-from pipeline import process_single_email
+from pipeline import process_single_email, send_due_leave_alerts
 
 
 class _FakeGmail:
@@ -15,9 +19,10 @@ class _FakeGmail:
 
 
 class _FakeCalendar:
-    def __init__(self, day_events=None):
+    def __init__(self, day_events=None, window_events=None):
         self.last_event = None
         self.day_events = day_events or []
+        self.window_events = window_events or []
 
     def create_smart_event(self, parsed_event, travel_info=None, source_email_id=None):
         del travel_info, source_email_id
@@ -30,6 +35,10 @@ class _FakeCalendar:
     def list_events_for_day(self, target_date=None):
         del target_date
         return list(self.day_events)
+
+    def list_events_in_window(self, start_dt, end_dt):
+        del start_dt, end_dt
+        return list(self.window_events)
 
 
 class _FakeTravel:
@@ -510,3 +519,42 @@ async def test_process_single_email_uses_latest_prior_calendar_location_as_origi
     assert result["calendar_status"] == "created"
     assert travel.last_estimate_args["origin"] == "Siebel Center"
     assert travel.last_estimate_args["origin_source"] == "calendar_context"
+
+
+@pytest.mark.anyio
+async def test_send_due_leave_alerts_sends_due_text_once(monkeypatch, tmp_path):
+    sent_messages: list[str] = []
+
+    async def fake_send_text_message(message: str, follow_up_link: str | None = None):
+        del follow_up_link
+        sent_messages.append(message)
+        return None
+
+    monkeypatch.setattr("pipeline.send_text_message", fake_send_text_message)
+    monkeypatch.setattr("pipeline.Config.state_dir", str(tmp_path))
+
+    calendar = _FakeCalendar(
+        window_events=[
+            {
+                "id": "evt-1",
+                "summary": "Dinner meeting with Aryan Gupta",
+                "location": "Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)",
+                "start": {"dateTime": "2026-04-01T19:00:00-05:00"},
+                "extendedProperties": {
+                    "private": {
+                        CalendarManager.LEAVE_ALERT_AT_PROPERTY: "2026-04-01T18:41:00-05:00"
+                    }
+                },
+            }
+        ]
+    )
+    now = datetime(2026, 4, 1, 18, 45, tzinfo=ZoneInfo("America/Chicago"))
+
+    first = await send_due_leave_alerts(calendar=calendar, now=now)
+    second = await send_due_leave_alerts(calendar=calendar, now=now + timedelta(minutes=1))
+
+    assert first == [{"event_id": "evt-1", "summary": "Dinner meeting with Aryan Gupta", "status": "sent"}]
+    assert second == []
+    assert len(sent_messages) == 1
+    assert sent_messages[0].startswith("‼️ hey, it's time to leave for dinner at oozu ramen w/ aryan!")
+    assert "location: Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)" in sent_messages[0]

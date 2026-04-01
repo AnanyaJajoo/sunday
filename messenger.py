@@ -75,6 +75,11 @@ def _compact_title_for_headline(title: str) -> str:
     return f"{base} w/ {compact_people}"
 
 
+def _strip_meeting_word(text: str) -> str:
+    """Remove filler words like 'meeting' from alert headlines."""
+    return re.sub(r"\bmeeting\b", "", text, flags=re.IGNORECASE).strip()
+
+
 def _location_name_for_headline(location: str | None) -> str | None:
     """Return the place name portion of a resolved location string."""
     if not location:
@@ -114,6 +119,29 @@ def _build_event_headline(parsed_email: dict) -> str:
     if day_suffix and day_suffix not in headline.lower():
         headline = f"{headline} {day_suffix}"
 
+    return _casualize_headline(headline)
+
+
+def _build_leave_alert_headline(calendar_event: dict) -> str:
+    """Build a compact leave-now headline from a calendar event."""
+    title_source = _trim_sentence(calendar_event.get("summary", "event")) or "event"
+    location_name = _location_name_for_headline(calendar_event.get("location"))
+
+    match = re.search(r"^(.*?)(?:\s+with\s+)(.+)$", title_source, re.IGNORECASE)
+    if match:
+        base, people = match.groups()
+        base = _strip_meeting_word(base) or "event"
+        compact_people = _compact_people_phrase(people)
+        headline = base
+        if location_name and _normalise_match(location_name) not in _normalise_match(headline):
+            headline = f"{headline} at {location_name}"
+        if compact_people:
+            headline = f"{headline} w/ {compact_people}"
+        return _casualize_headline(headline)
+
+    headline = _strip_meeting_word(title_source) or title_source
+    if location_name and _normalise_match(location_name) not in _normalise_match(headline):
+        headline = f"{headline} at {location_name}"
     return _casualize_headline(headline)
 
 
@@ -279,27 +307,16 @@ def format_summary(
     return "\n".join(lines)
 
 
-async def send_summary(
-    parsed_email: dict,
-    calendar_status: str = "not_applicable",
-    travel_info: dict | None = None,
-    processing_notes: list[str] | None = None,
-    source_email_link: str | None = None,
-) -> None:
-    """
-    Format and dispatch a summary to all configured messaging channels.
+def format_leave_alert(calendar_event: dict) -> str:
+    """Format a leave-now text message for a due in-person event."""
+    lines = [f"‼️ hey, it's time to leave for {_build_leave_alert_headline(calendar_event)}!"]
+    if calendar_event.get("location"):
+        lines.append(f"location: {calendar_event['location']}")
+    return "\n".join(lines)
 
-    Raises:
-        MessagingDeliveryError: If no configured channel can deliver the summary.
-    """
-    message = format_summary(
-        parsed_email,
-        calendar_status,
-        travel_info,
-        processing_notes,
-        source_email_link,
-    )
 
+async def send_text_message(message: str, follow_up_link: str | None = None) -> None:
+    """Send a plain outbound text through all configured messaging channels."""
     telegram = TelegramMessenger()
     imessage = IMessageSender()
 
@@ -309,9 +326,9 @@ async def send_summary(
 
     async def _send_main_and_link(sender) -> bool:
         delivered = await sender.send(message)
-        if delivered and source_email_link and Config.text_email_links:
+        if delivered and follow_up_link and Config.text_email_links:
             try:
-                await sender.send(source_email_link)
+                await sender.send(follow_up_link)
             except MessagingDeliveryError as exc:
                 log.warning("Follow-up email link delivery failed: %s", exc)
         return delivered
@@ -336,4 +353,27 @@ async def send_summary(
         )
 
     if not sent_any:
-        raise MessagingDeliveryError("; ".join(errors) or "No messaging channel delivered the summary.")
+        raise MessagingDeliveryError("; ".join(errors) or "No messaging channel delivered the message.")
+
+
+async def send_summary(
+    parsed_email: dict,
+    calendar_status: str = "not_applicable",
+    travel_info: dict | None = None,
+    processing_notes: list[str] | None = None,
+    source_email_link: str | None = None,
+) -> None:
+    """
+    Format and dispatch a summary to all configured messaging channels.
+
+    Raises:
+        MessagingDeliveryError: If no configured channel can deliver the summary.
+    """
+    message = format_summary(
+        parsed_email,
+        calendar_status,
+        travel_info,
+        processing_notes,
+        source_email_link,
+    )
+    await send_text_message(message, source_email_link)

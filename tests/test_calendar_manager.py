@@ -71,14 +71,22 @@ def test_calendar_manager_sets_extended_property_on_insert(monkeypatch):
             "date": "2026-04-02",
             "start_time": "14:00",
             "end_time": "15:00",
-            "is_online": True,
+            "is_online": False,
+            "location": "Office",
             "attendees": [],
         },
         source_email_id="gmail-123",
+        travel_info={"travel_minutes": 10, "departure_time": "1:35 PM"},
     )
 
     assert result["status"] == "created"
     assert events.insert_calls[0]["body"]["extendedProperties"]["private"]["smartCalendarEmailId"] == "gmail-123"
+    assert (
+        events.insert_calls[0]["body"]["extendedProperties"]["private"][
+            CalendarManager.LEAVE_ALERT_AT_PROPERTY
+        ]
+        == "2026-04-02T13:35:00-05:00"
+    )
 
 
 def test_compute_smart_reminders_skips_day_before_for_casual_lunch(monkeypatch):

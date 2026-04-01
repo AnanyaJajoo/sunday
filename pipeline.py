@@ -5,6 +5,7 @@ Encapsulates one full pass: fetch emails → LLM parse → calendar → notify.
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -14,7 +15,8 @@ from config import Config
 from email_parser import enrich_event_details, get_calendar_readiness_issues, parse_email, summarise_parsed
 from errors import ConfigurationError, TravelEstimationError
 from gmail_watcher import GmailWatcher
-from messenger import send_summary
+from messenger import format_leave_alert, send_summary, send_text_message
+from state_store import get_state_file
 from travel_estimator import TravelEstimator
 
 log = logging.getLogger(__name__)
@@ -23,6 +25,8 @@ _gmail: GmailWatcher | None = None
 _calendar: CalendarManager | None = None
 _travel: TravelEstimator | None = None
 _CALENDAR_ORIGIN_LOOKBACK = timedelta(hours=6)
+_LEAVE_ALERT_LOOKAHEAD = timedelta(days=1)
+_LEAVE_ALERT_STATE_FILE = "sent_leave_alerts.json"
 _WEEKDAY_INDEX = {
     "mon": 0,
     "tue": 1,
@@ -32,6 +36,93 @@ _WEEKDAY_INDEX = {
     "sat": 5,
     "sun": 6,
 }
+
+
+def _leave_alert_state_path():
+    """Return the persistent state path for sent leave alerts."""
+    return get_state_file(_LEAVE_ALERT_STATE_FILE)
+
+
+def _load_sent_leave_alerts() -> dict[str, str]:
+    """Load previously sent leave-alert keys from disk."""
+    path = _leave_alert_state_path()
+    if not path.exists():
+        return {}
+
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    sent = payload.get("sent", {})
+    if not isinstance(sent, dict):
+        return {}
+    return {str(key): str(value) for key, value in sent.items()}
+
+
+def _save_sent_leave_alerts(sent: dict[str, str]) -> None:
+    """Persist sent leave-alert keys to disk."""
+    path = _leave_alert_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"sent": sent}, indent=2, sort_keys=True))
+
+
+def _prune_sent_leave_alerts(sent: dict[str, str], now: datetime) -> dict[str, str]:
+    """Drop stale sent-alert records so the state file stays small."""
+    cutoff = now - timedelta(days=7)
+    pruned: dict[str, str] = {}
+
+    for key, sent_at in sent.items():
+        try:
+            parsed = datetime.fromisoformat(sent_at.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=ZoneInfo(Config.timezone))
+        else:
+            parsed = parsed.astimezone(ZoneInfo(Config.timezone))
+
+        if parsed >= cutoff:
+            pruned[key] = sent_at
+
+    return pruned
+
+
+def _leave_alert_at_from_event(event_item: dict) -> datetime | None:
+    """Read the stored leave-alert datetime from Calendar extended properties."""
+    raw = (
+        (((event_item.get("extendedProperties") or {}).get("private") or {}).get(
+            CalendarManager.LEAVE_ALERT_AT_PROPERTY
+        ))
+        or ""
+    ).strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    tz = ZoneInfo(Config.timezone)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=tz)
+    return parsed.astimezone(tz)
+
+
+def _leave_alert_key(event_item: dict) -> str | None:
+    """Build a stable deduplication key for a leave alert."""
+    event_id = (event_item.get("id") or "").strip()
+    raw_leave_at = (
+        (((event_item.get("extendedProperties") or {}).get("private") or {}).get(
+            CalendarManager.LEAVE_ALERT_AT_PROPERTY
+        ))
+        or ""
+    ).strip()
+    if not event_id or not raw_leave_at:
+        return None
+    return f"{event_id}:{raw_leave_at}"
 
 
 def _build_gmail_thread_link(email_data: dict) -> str | None:
@@ -313,6 +404,77 @@ async def process_single_email(
         "summary": parsed.get("summary"),
         "processing_notes": processing_notes,
     }
+
+
+async def send_due_leave_alerts(
+    calendar: CalendarManager | None = None,
+    now: datetime | None = None,
+) -> list[dict]:
+    """Send once-only leave-now texts for managed events whose departure time is due."""
+    tz = ZoneInfo(Config.timezone)
+    now_local = now or datetime.now(tz)
+    if now_local.tzinfo is None:
+        now_local = now_local.replace(tzinfo=tz)
+    else:
+        now_local = now_local.astimezone(tz)
+
+    active_calendar = calendar or _get_singletons()[1]
+
+    try:
+        events = active_calendar.list_events_in_window(now_local, now_local + _LEAVE_ALERT_LOOKAHEAD)
+    except Exception as exc:
+        log.warning("Leave-alert scan unavailable: %s", exc)
+        return []
+
+    sent_state = _prune_sent_leave_alerts(_load_sent_leave_alerts(), now_local)
+    results: list[dict] = []
+    state_dirty = False
+
+    for event_item in events:
+        leave_alert_at = _leave_alert_at_from_event(event_item)
+        if leave_alert_at is None or leave_alert_at > now_local:
+            continue
+
+        start_dt = _google_event_dt(event_item, "start")
+        if start_dt is not None and start_dt <= now_local:
+            continue
+
+        alert_key = _leave_alert_key(event_item)
+        if not alert_key or alert_key in sent_state:
+            continue
+
+        try:
+            await send_text_message(format_leave_alert(event_item))
+        except Exception as exc:
+            log.error(
+                "Leave-alert delivery failed for %s: %s",
+                event_item.get("summary") or event_item.get("id") or "event",
+                exc,
+            )
+            results.append(
+                {
+                    "event_id": event_item.get("id"),
+                    "summary": event_item.get("summary"),
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        sent_state[alert_key] = now_local.isoformat()
+        state_dirty = True
+        log.info("  → Leave alert sent for %s", event_item.get("summary") or event_item.get("id"))
+        results.append(
+            {
+                "event_id": event_item.get("id"),
+                "summary": event_item.get("summary"),
+                "status": "sent",
+            }
+        )
+
+    if state_dirty:
+        _save_sent_leave_alerts(sent_state)
+
+    return results
 
 
 async def run_pipeline(max_emails: int | None = None) -> list[dict]:

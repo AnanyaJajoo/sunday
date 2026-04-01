@@ -26,6 +26,7 @@ class CalendarManager:
     """
 
     SOURCE_EMAIL_PROPERTY = "smartCalendarEmailId"
+    LEAVE_ALERT_AT_PROPERTY = "smartCalendarLeaveAlertAt"
 
     def __init__(self) -> None:
         from google_auth import get_google_service
@@ -91,10 +92,14 @@ class CalendarManager:
         if parsed_event.get("attendees"):
             event_body["attendees"] = [{"email": email} for email in parsed_event["attendees"]]
 
+        leave_alert_at = self._compute_leave_alert_at(start_dt, parsed_event, travel_info)
+        private_properties: dict[str, str] = {}
         if source_email_id:
-            event_body["extendedProperties"] = {
-                "private": {self.SOURCE_EMAIL_PROPERTY: source_email_id}
-            }
+            private_properties[self.SOURCE_EMAIL_PROPERTY] = source_email_id
+        if leave_alert_at:
+            private_properties[self.LEAVE_ALERT_AT_PROPERTY] = leave_alert_at
+        if private_properties:
+            event_body["extendedProperties"] = {"private": private_properties}
 
         try:
             created = (
@@ -159,6 +164,25 @@ class CalendarManager:
             )
         except Exception as exc:
             raise CalendarEventError("Failed to list today's events.") from exc
+
+        return result.get("items", [])
+
+    def list_events_in_window(self, start_dt: datetime, end_dt: datetime) -> list[dict]:
+        """Fetch calendar events in a specific local time window."""
+        try:
+            result = (
+                self.service.events()
+                .list(
+                    calendarId="primary",
+                    timeMin=start_dt.isoformat(),
+                    timeMax=end_dt.isoformat(),
+                    singleEvents=True,
+                    orderBy="startTime",
+                )
+                .execute()
+            )
+        except Exception as exc:
+            raise CalendarEventError("Failed to list calendar events in the requested window.") from exc
 
         return result.get("items", [])
 
@@ -313,3 +337,26 @@ class CalendarManager:
         if CalendarManager._wants_day_before_reminder(start_dt, parsed_event, travel_info):
             reminders.append({"method": "popup", "minutes": 1440})
         return reminders[:5]
+
+    @staticmethod
+    def _compute_leave_alert_at(
+        start_dt: datetime,
+        parsed_event: dict,
+        travel_info: dict | None,
+    ) -> str | None:
+        """Return the absolute local datetime when a leave-now text should fire."""
+        if parsed_event.get("is_online") or not travel_info or not travel_info.get("departure_time"):
+            return None
+
+        travel_minutes = int(travel_info.get("travel_minutes") or 0)
+        leave_by_minutes = travel_minutes + Config.prep_time
+        if leave_by_minutes <= 0:
+            return None
+
+        local_tz = ZoneInfo(Config.timezone)
+        local_start = (
+            start_dt.replace(tzinfo=local_tz)
+            if start_dt.tzinfo is None
+            else start_dt.astimezone(local_tz)
+        )
+        return (local_start - timedelta(minutes=leave_by_minutes)).isoformat()
