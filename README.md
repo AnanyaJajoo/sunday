@@ -100,30 +100,91 @@ If you use iMessage instead of Telegram:
 
 ### 4. Create a Google Cloud project
 
-In [Google Cloud Console](https://console.cloud.google.com/):
+Everything in this section is done in [Google Cloud Console](https://console.cloud.google.com/).
 
-1. Create a project.
-2. Enable:
-   - Gmail API
-   - Google Calendar API
-   - Distance Matrix API
-3. Go to `APIs & Services -> Credentials`.
-4. Create an OAuth client ID.
-5. Choose `Desktop app`.
-6. Download the credentials JSON.
-7. Save it in the repo root as `credentials.json`.
+#### 4.1 Create the project
+
+1. Create a new Google Cloud project for this app.
+2. Make sure you stay in that same project for every step below.
+
+#### 4.2 Configure the OAuth consent screen
+
+This app reads Gmail, marks processed Gmail messages, and writes to Google Calendar, so you need a real OAuth app, not just an API key.
+
+1. Go to `Google Auth Platform`.
+   If your console still shows the older layout, use `APIs & Services -> OAuth consent screen`.
+2. Create the app configuration if Google asks you to.
+3. Fill in the basics:
+   - app name: anything you want, like `Sunday`
+   - support email: your Google account
+   - developer contact email: your Google account
+4. Choose `External` audience.
+5. Leave the app in `Testing` while you are developing locally.
+6. Add your own Google account under `Test users`.
+
+If you skip the test-user step, Google OAuth will fail with an `access_denied` or "app has not completed the Google verification process" screen.
+
+#### 4.3 Enable the Google Workspace APIs this app uses
+
+Go to `APIs & Services -> Library` and enable:
+- `Gmail API`
+- `Google Calendar API`
+
+This app requests these OAuth scopes when you sign in:
+- `https://www.googleapis.com/auth/gmail.readonly`
+- `https://www.googleapis.com/auth/gmail.modify`
+- `https://www.googleapis.com/auth/calendar`
+
+#### 4.4 Create the Desktop OAuth client
+
+1. Go to `APIs & Services -> Credentials`.
+2. Click `Create Credentials -> OAuth client ID`.
+3. Application type: `Desktop app`
+4. Name it anything you want.
+5. Download the JSON file.
+6. Save that file in the repo root as `credentials.json`.
 
 That filename must match `GOOGLE_CREDENTIALS_FILE` in `config.env`.
 
+Important:
+- use a `Desktop app` client, not `Web application`
+- if you create a new OAuth client later, replace `credentials.json`
+- if OAuth starts behaving strangely after rotating credentials, delete `token.json` and sign in again
+
 ### 5. Get a Google Maps key
 
-Still in Google Cloud:
+The app uses Google Maps separately from Gmail and Calendar. It needs this for travel time and exact address lookups.
 
-1. Create an API key.
-2. Make sure the key can access:
-   - Distance Matrix API
-   - Geocoding API
-3. Put it into `GOOGLE_MAPS_API_KEY` in `config.env`.
+#### 5.1 Turn on billing for the project
+
+Google Maps Platform APIs require billing on the project. If billing is missing, the API key may exist but requests can still fail.
+
+#### 5.2 Enable the Maps APIs this app uses
+
+Go to `APIs & Services -> Library` and enable:
+- `Distance Matrix API`
+- `Geocoding API`
+
+#### 5.3 Create the API key
+
+1. Go to `APIs & Services -> Credentials`.
+2. Click `Create Credentials -> API key`.
+3. Copy the key into `GOOGLE_MAPS_API_KEY` in `config.env`.
+
+#### 5.4 Set key restrictions correctly
+
+Open that API key and configure:
+
+1. `API restrictions`
+   - restrict the key to:
+     - `Distance Matrix API`
+     - `Geocoding API`
+2. `Application restrictions`
+   - for local development, `None` is the easiest way to confirm the key works
+   - for a real server deployment, use a server-safe restriction like `IP addresses`
+   - do not use `HTTP referrers`, `Android`, or `iOS` restrictions for this backend key
+
+If travel time works but address lookup fails with `REQUEST_DENIED`, the most common cause is that the key is allowed to call `Distance Matrix API` but not `Geocoding API`.
 
 Without this key, in-person travel reminders and exact address lookups will fail instead of guessing fake travel times or addresses.
 
