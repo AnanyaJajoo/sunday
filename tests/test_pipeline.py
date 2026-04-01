@@ -52,12 +52,14 @@ class _FakeTravel:
                 "canonical_name": None,
                 "formatted_address": "1401 W Green St, Urbana, IL 61801",
                 "display_location": "Illini Union (1401 W Green St, Urbana, IL 61801)",
+                "calendar_location": "1401 W Green St, Urbana, IL 61801",
                 "routing_destination": "1401 W Green St, Urbana, IL 61801",
             }
         return {
             "canonical_name": None,
             "formatted_address": destination,
             "display_location": destination,
+            "calendar_location": destination,
             "routing_destination": destination,
         }
 
@@ -552,6 +554,7 @@ async def test_process_single_email_replaces_typoed_venue_name_in_title(monkeypa
                 "canonical_name": "Oozu Ramen",
                 "formatted_address": "601 S 6th St #102, Champaign, IL 61820",
                 "display_location": "Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)",
+                "calendar_location": "Oozu Ramen, 601 S 6th St #102, Champaign, IL 61820",
                 "routing_destination": "601 S 6th St #102, Champaign, IL 61820",
             }
 
@@ -575,6 +578,7 @@ async def test_process_single_email_replaces_typoed_venue_name_in_title(monkeypa
     assert result["calendar_status"] == "created"
     assert calendar.last_event["title"] == "Dinner at Oozu Ramen with Aryan Gupta"
     assert calendar.last_event["location"] == "Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)"
+    assert calendar.last_event["calendar_location"] == "Oozu Ramen, 601 S 6th St #102, Champaign, IL 61820"
 
 
 @pytest.mark.anyio

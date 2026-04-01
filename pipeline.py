@@ -388,6 +388,8 @@ async def process_single_email(
                             event["location"],
                             canonical_name,
                         )
+                    event["display_location"] = resolved_location["display_location"]
+                    event["calendar_location"] = resolved_location["calendar_location"]
                     event["location"] = resolved_location["display_location"]
                     routing_destination = resolved_location["routing_destination"]
 

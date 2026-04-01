@@ -4,7 +4,9 @@ travel_estimator.py — Travel time estimation via Google Maps Distance Matrix A
 from __future__ import annotations
 
 import logging
+import math
 import re
+from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 
 import httpx
@@ -31,6 +33,8 @@ class TravelEstimator:
     GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
     PLACES_TEXTSEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
     _LOCAL_BIAS_PADDING = 0.15
+    _PLACE_RESULT_LIMIT = 5
+    _LOCAL_SEARCH_RADIUS_METERS = 30000
 
     @staticmethod
     def _default_origin() -> tuple[str | None, dict]:
@@ -90,17 +94,22 @@ class TravelEstimator:
     @classmethod
     def _local_search_circle(cls) -> tuple[str | None, int | None]:
         """Return a local search center/radius for place searches."""
-        points = [
-            (Config.default_home_lat, Config.default_home_lng),
-            (Config.default_work_lat, Config.default_work_lng),
-        ]
-        coords = [(lat, lng) for lat, lng in points if lat is not None and lng is not None]
+        coords = cls._local_search_coords()
         if not coords:
             return None, None
 
         center_lat = sum(lat for lat, _ in coords) / len(coords)
         center_lng = sum(lng for _, lng in coords) / len(coords)
-        return f"{center_lat},{center_lng}", 30000
+        return f"{center_lat},{center_lng}", cls._LOCAL_SEARCH_RADIUS_METERS
+
+    @staticmethod
+    def _local_search_coords() -> list[tuple[float, float]]:
+        """Return configured home/work coordinates for local ranking."""
+        points = [
+            (Config.default_home_lat, Config.default_home_lng),
+            (Config.default_work_lat, Config.default_work_lng),
+        ]
+        return [(lat, lng) for lat, lng in points if lat is not None and lng is not None]
 
     @staticmethod
     def _looks_like_bare_place_name(destination: str) -> bool:
@@ -130,6 +139,9 @@ class TravelEstimator:
             queries.extend(
                 [
                     f"{destination} restaurant",
+                    f"{destination} bar",
+                    f"{destination} bar and grill",
+                    f"{destination} bar & grill",
                     f"{destination} grill & bar",
                     f"{destination} grill and bar",
                 ]
@@ -138,6 +150,176 @@ class TravelEstimator:
             queries.extend([f"{destination} cafe", f"{destination} coffee"])
 
         return queries
+
+    @staticmethod
+    def _normalize_search_text(text: str) -> str:
+        """Normalize text for fuzzy place matching."""
+        normalized = text.lower().replace("&", " and ").replace("’", "'")
+        normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+        return re.sub(r"\s+", " ", normalized).strip()
+
+    @classmethod
+    def _tokenize_search_text(cls, text: str) -> set[str]:
+        """Split a place name into normalized search tokens."""
+        return {token for token in cls._normalize_search_text(text).split() if token}
+
+    @staticmethod
+    def _context_place_types(context_text: str | None) -> set[str]:
+        """Infer preferred Google place types from the event context."""
+        if not context_text:
+            return set()
+
+        lowered_context = context_text.lower()
+        if any(word in lowered_context for word in ("dinner", "lunch", "breakfast", "brunch", "ramen", "food", "eat")):
+            return {"restaurant", "food", "bar", "meal_takeaway"}
+        if any(word in lowered_context for word in ("coffee", "cafe", "latte", "espresso")):
+            return {"cafe", "coffee_shop", "bakery", "food"}
+        return set()
+
+    @staticmethod
+    def _haversine_distance_meters(
+        lat1: float,
+        lng1: float,
+        lat2: float,
+        lng2: float,
+    ) -> float:
+        """Return the straight-line distance between two coordinates."""
+        earth_radius_m = 6_371_000
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lng2 - lng1)
+
+        a = (
+            math.sin(d_phi / 2) ** 2
+            + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+        )
+        return 2 * earth_radius_m * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    @classmethod
+    def _candidate_distance_meters(cls, candidate: dict) -> float | None:
+        """Return the candidate's distance to the configured local centers."""
+        location = ((candidate.get("geometry") or {}).get("location") or {})
+        lat = location.get("lat")
+        lng = location.get("lng")
+        if lat is None or lng is None:
+            return None
+
+        distances = [
+            cls._haversine_distance_meters(lat, lng, center_lat, center_lng)
+            for center_lat, center_lng in cls._local_search_coords()
+        ]
+        return min(distances) if distances else None
+
+    @classmethod
+    def _score_place_candidate(
+        cls,
+        destination: str,
+        query: str,
+        candidate: dict,
+        context_text: str | None,
+    ) -> float:
+        """Score a Places candidate so we prefer the best local exact match."""
+        candidate_name = cls._clean_place_name(candidate.get("name", "") or "")
+        destination_norm = cls._normalize_search_text(destination)
+        query_norm = cls._normalize_search_text(query)
+        candidate_norm = cls._normalize_search_text(candidate_name)
+        destination_tokens = cls._tokenize_search_text(destination)
+        candidate_tokens = cls._tokenize_search_text(candidate_name)
+
+        score = 0.0
+
+        if destination_norm and destination_norm == candidate_norm:
+            score += 120
+        if destination_norm and destination_norm in candidate_norm:
+            score += 75
+        if query_norm and query_norm in candidate_norm:
+            score += 20
+
+        if destination_norm and candidate_norm:
+            score += 45 * SequenceMatcher(None, destination_norm, candidate_norm).ratio()
+        if query_norm and candidate_norm:
+            score += 15 * SequenceMatcher(None, query_norm, candidate_norm).ratio()
+
+        if destination_tokens:
+            overlap = len(destination_tokens & candidate_tokens) / len(destination_tokens)
+            score += 55 * overlap
+            if destination_tokens <= candidate_tokens:
+                score += 20
+
+        preferred_types = cls._context_place_types(context_text)
+        candidate_types = set(candidate.get("types") or [])
+        if preferred_types and candidate_types & preferred_types:
+            score += 18
+
+        if candidate.get("business_status") == "OPERATIONAL":
+            score += 5
+
+        distance_meters = cls._candidate_distance_meters(candidate)
+        if distance_meters is not None:
+            score += max(0.0, 18 - min(distance_meters, 36_000) / 2_000)
+
+        return score
+
+    @classmethod
+    def _select_best_place_match(
+        cls,
+        destination: str,
+        candidates: list[tuple[str, dict]],
+        context_text: str | None,
+    ) -> dict | None:
+        """Choose the strongest local match across multiple Places queries."""
+        best_match: dict | None = None
+        best_score = float("-inf")
+        seen_scores: dict[str, float] = {}
+
+        for query, result in candidates:
+            score = cls._score_place_candidate(destination, query, result, context_text)
+            key = (
+                result.get("place_id")
+                or f"{cls._clean_place_name(result.get('name', '') or '')}|"
+                f"{cls._clean_formatted_address(result.get('formatted_address', '') or '')}"
+            )
+            if key in seen_scores and score <= seen_scores[key]:
+                continue
+            seen_scores[key] = score
+            if score > best_score:
+                best_score = score
+                best_match = result
+
+        return best_match
+
+    @classmethod
+    def _build_display_location(
+        cls,
+        place_name: str | None,
+        formatted_address: str | None,
+        fallback: str,
+    ) -> str:
+        """Return the friendlier label we show in texts and summaries."""
+        if place_name and formatted_address and not cls._addresses_equivalent(place_name, formatted_address):
+            return f"{place_name} ({formatted_address})"
+        if formatted_address:
+            return formatted_address
+        if place_name:
+            return place_name
+        return fallback
+
+    @classmethod
+    def _build_calendar_location(
+        cls,
+        place_name: str | None,
+        formatted_address: str | None,
+        fallback: str,
+    ) -> str:
+        """Return a Calendar-friendly location string that geocodes more cleanly."""
+        if place_name and formatted_address and not cls._addresses_equivalent(place_name, formatted_address):
+            return f"{place_name}, {formatted_address}"
+        if formatted_address:
+            return formatted_address
+        if place_name:
+            return place_name
+        return fallback
 
     @classmethod
     def _destination_queries(cls, destination: str, context_text: str | None = None) -> list[str]:
@@ -202,16 +384,17 @@ class TravelEstimator:
 
     async def resolve_destination(self, destination: str, context_text: str | None = None) -> dict:
         """
-        Resolve a human place name to a friendlier display string and exact address.
+        Resolve a human place name to exact routing and display/calendar strings.
 
         Returns:
             {
                 "query": original input,
+                "canonical_name": canonical Google venue name or None,
                 "formatted_address": exact address or None,
-                "display_location": string suitable for Calendar/texts,
+                "display_location": string suitable for texts,
+                "calendar_location": string suitable for Google Calendar pinning,
                 "routing_destination": best destination for Maps routing,
             }
-        }
         """
         if not Config.google_maps_key:
             raise ConfigurationError(
@@ -226,6 +409,7 @@ class TravelEstimator:
             async with httpx.AsyncClient(timeout=10) as client:
                 place_match: dict | None = None
                 if self._looks_like_bare_place_name(destination):
+                    place_candidates: list[tuple[str, dict]] = []
                     for query in queries:
                         places_data = await self._places_text_search(
                             client,
@@ -235,8 +419,9 @@ class TravelEstimator:
                         )
                         status = places_data.get("status")
                         if status == "OK" and places_data.get("results"):
-                            place_match = places_data["results"][0]
-                            break
+                            for result in places_data["results"][: self._PLACE_RESULT_LIMIT]:
+                                place_candidates.append((query, result))
+                            continue
                         if status in {"ZERO_RESULTS", "NOT_FOUND"}:
                             continue
                         if status and status != "OK":
@@ -247,23 +432,34 @@ class TravelEstimator:
                                 status,
                             )
                             break
+                    place_match = self._select_best_place_match(
+                        destination,
+                        place_candidates,
+                        context_text,
+                    )
 
                 if place_match:
                     place_name = self._clean_place_name(place_match.get("name", "") or destination)
                     formatted_address = self._clean_formatted_address(
                         place_match.get("formatted_address", "") or destination
                     )
-                    display_location = place_name
-                    if formatted_address and not self._addresses_equivalent(place_name, formatted_address):
-                        display_location = f"{place_name} ({formatted_address})"
-                    elif formatted_address:
-                        display_location = formatted_address
+                    display_location = self._build_display_location(
+                        place_name,
+                        formatted_address,
+                        destination,
+                    )
+                    calendar_location = self._build_calendar_location(
+                        place_name,
+                        formatted_address,
+                        destination,
+                    )
 
                     return {
                         "query": destination,
                         "canonical_name": place_name,
                         "formatted_address": formatted_address,
                         "display_location": display_location,
+                        "calendar_location": calendar_location,
                         "routing_destination": formatted_address or place_name or destination,
                     }
 
@@ -294,6 +490,7 @@ class TravelEstimator:
                 "canonical_name": None,
                 "formatted_address": None,
                 "display_location": destination,
+                "calendar_location": destination,
                 "routing_destination": destination,
             }
         if status != "OK":
@@ -309,17 +506,15 @@ class TravelEstimator:
                 "Google Maps geocoding returned an unexpected response shape."
             ) from exc
 
-        display_location = destination
-        if formatted_address and not self._addresses_equivalent(destination, formatted_address):
-            display_location = f"{destination} ({formatted_address})"
-        elif formatted_address:
-            display_location = formatted_address
+        display_location = self._build_display_location(destination, formatted_address, destination)
+        calendar_location = self._build_calendar_location(None, formatted_address, destination)
 
         return {
             "query": destination,
             "canonical_name": None,
             "formatted_address": formatted_address,
             "display_location": display_location,
+            "calendar_location": calendar_location,
             "routing_destination": formatted_address or destination,
         }
 

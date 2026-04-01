@@ -72,7 +72,9 @@ def test_calendar_manager_sets_extended_property_on_insert(monkeypatch):
             "start_time": "14:00",
             "end_time": "15:00",
             "is_online": False,
-            "location": "Office",
+            "location": "Office (201 N Goodwin Ave, Urbana, IL 61801)",
+            "display_location": "Office (201 N Goodwin Ave, Urbana, IL 61801)",
+            "calendar_location": "Office, 201 N Goodwin Ave, Urbana, IL 61801",
             "attendees": [],
         },
         source_email_id="gmail-123",
@@ -86,6 +88,13 @@ def test_calendar_manager_sets_extended_property_on_insert(monkeypatch):
             CalendarManager.LEAVE_ALERT_AT_PROPERTY
         ]
         == "2026-04-02T13:35:00-05:00"
+    )
+    assert events.insert_calls[0]["body"]["location"] == "Office, 201 N Goodwin Ave, Urbana, IL 61801"
+    assert (
+        events.insert_calls[0]["body"]["extendedProperties"]["private"][
+            CalendarManager.DISPLAY_LOCATION_PROPERTY
+        ]
+        == "Office (201 N Goodwin Ave, Urbana, IL 61801)"
     )
     assert "attendees" not in events.insert_calls[0]["body"]
 

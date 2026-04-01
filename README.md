@@ -170,6 +170,7 @@ Google Maps Platform APIs require billing on the project. If billing is missing,
 Go to `APIs & Services -> Library` and enable:
 - `Distance Matrix API`
 - `Geocoding API`
+- `Places API`
 
 #### 5.3 Create the API key
 
@@ -185,14 +186,15 @@ Open that API key and configure:
    - restrict the key to:
      - `Distance Matrix API`
      - `Geocoding API`
+     - `Places API`
 2. `Application restrictions`
    - for local development, `None` is the easiest way to confirm the key works
    - for a real server deployment, use a server-safe restriction like `IP addresses`
    - do not use `HTTP referrers`, `Android`, or `iOS` restrictions for this backend key
 
-If travel time works but address lookup fails with `REQUEST_DENIED`, the most common cause is that the key is allowed to call `Distance Matrix API` but not `Geocoding API`.
+If travel time works but venue lookup or address lookup fails with `REQUEST_DENIED`, the most common cause is that the key is allowed to call `Distance Matrix API` but not `Geocoding API` and `Places API`.
 
-Without this key, in-person travel reminders and exact address lookups will fail instead of guessing fake travel times or addresses.
+Without this key, in-person travel reminders, exact address lookups, and robust business-name matching will fail instead of guessing fake travel times or addresses.
 
 ## LLM Setup
 

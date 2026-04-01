@@ -17,6 +17,7 @@ from config import Config
 from errors import MessagingDeliveryError
 
 log = logging.getLogger(__name__)
+_DISPLAY_LOCATION_PROPERTY = "smartCalendarDisplayLocation"
 
 
 def _trim_sentence(text: str) -> str:
@@ -87,6 +88,17 @@ def _location_name_for_headline(location: str | None) -> str | None:
     return location.split(" (", 1)[0].strip() or None
 
 
+def _event_location_label(event: dict) -> str | None:
+    """Prefer the friendly display location when present."""
+    return event.get("display_location") or event.get("location")
+
+
+def _calendar_event_location_label(event: dict) -> str | None:
+    """Prefer stored display location from Calendar extended properties."""
+    private_props = ((event.get("extendedProperties") or {}).get("private") or {})
+    return private_props.get(_DISPLAY_LOCATION_PROPERTY) or event.get("location")
+
+
 def _headline_day_suffix(date_str: str | None) -> str | None:
     """Return 'today' or 'tomorrow' when appropriate."""
     if not date_str:
@@ -111,7 +123,7 @@ def _build_event_headline(parsed_email: dict) -> str:
     title_source = event.get("title") or parsed_email.get("summary") or "event"
     headline = _compact_title_for_headline(title_source)
 
-    location_name = _location_name_for_headline(event.get("location"))
+    location_name = _location_name_for_headline(_event_location_label(event))
     if location_name and _normalise_match(location_name) not in _normalise_match(headline):
         headline = f"{headline} at {location_name}"
 
@@ -125,7 +137,7 @@ def _build_event_headline(parsed_email: dict) -> str:
 def _build_leave_alert_headline(calendar_event: dict) -> str:
     """Build a compact leave-now headline from a calendar event."""
     title_source = _trim_sentence(calendar_event.get("summary", "event")) or "event"
-    location_name = _location_name_for_headline(calendar_event.get("location"))
+    location_name = _location_name_for_headline(_calendar_event_location_label(calendar_event))
 
     match = re.search(r"^(.*?)(?:\s+with\s+)(.+)$", title_source, re.IGNORECASE)
     if match:
@@ -267,8 +279,9 @@ def format_summary(
 
     if parsed_email.get("has_event"):
         lines.append(f"reminder: {_build_event_headline(parsed_email)}!")
-        if event.get("location"):
-            lines.append(f"location: {event['location']}")
+        event_location = _event_location_label(event)
+        if event_location:
+            lines.append(f"location: {event_location}")
 
         time_label = _format_time_label(event.get("date"), event.get("start_time"))
         if time_label:
@@ -310,8 +323,9 @@ def format_summary(
 def format_leave_alert(calendar_event: dict) -> str:
     """Format a leave-now text message for a due in-person event."""
     lines = [f"‼️ hey, it's time to leave for {_build_leave_alert_headline(calendar_event)}!"]
-    if calendar_event.get("location"):
-        lines.append(f"location: {calendar_event['location']}")
+    location = _calendar_event_location_label(calendar_event)
+    if location:
+        lines.append(f"location: {location}")
     return "\n".join(lines)
 
 

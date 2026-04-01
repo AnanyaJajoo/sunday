@@ -58,7 +58,12 @@ def test_format_leave_alert_uses_urgent_text_and_location():
     message = format_leave_alert(
         {
             "summary": "Dinner meeting with Aryan Gupta",
-            "location": "Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)",
+            "location": "Oozu Ramen, 601 S 6th St #102, Champaign, IL 61820",
+            "extendedProperties": {
+                "private": {
+                    "smartCalendarDisplayLocation": "Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)"
+                }
+            },
         }
     )
 

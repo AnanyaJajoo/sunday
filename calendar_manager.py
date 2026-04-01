@@ -27,6 +27,7 @@ class CalendarManager:
 
     SOURCE_EMAIL_PROPERTY = "smartCalendarEmailId"
     LEAVE_ALERT_AT_PROPERTY = "smartCalendarLeaveAlertAt"
+    DISPLAY_LOCATION_PROPERTY = "smartCalendarDisplayLocation"
 
     def __init__(self) -> None:
         from google_auth import get_google_service
@@ -86,8 +87,9 @@ class CalendarManager:
             },
         }
 
-        if parsed_event.get("location"):
-            event_body["location"] = parsed_event["location"]
+        calendar_location = parsed_event.get("calendar_location") or parsed_event.get("location")
+        if calendar_location:
+            event_body["location"] = calendar_location
 
         leave_alert_at = self._compute_leave_alert_at(start_dt, parsed_event, travel_info)
         private_properties: dict[str, str] = {}
@@ -95,6 +97,8 @@ class CalendarManager:
             private_properties[self.SOURCE_EMAIL_PROPERTY] = source_email_id
         if leave_alert_at:
             private_properties[self.LEAVE_ALERT_AT_PROPERTY] = leave_alert_at
+        if parsed_event.get("display_location"):
+            private_properties[self.DISPLAY_LOCATION_PROPERTY] = parsed_event["display_location"]
         if private_properties:
             event_body["extendedProperties"] = {"private": private_properties}
 
