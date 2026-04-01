@@ -74,6 +74,7 @@ class GmailWatcher:
         from google_auth import get_google_service
 
         self.service = get_google_service("gmail", "v1")
+        self._account_email = self._load_account_email()
         self._seen_ids: set[str] = set()
         self._processed_ids: set[str] = _load_processed_ids()
         self._startup_cutoff_ms = int(time.time() * 1000)
@@ -81,6 +82,16 @@ class GmailWatcher:
             "Watcher baseline set at %d. Only emails received after startup will be processed.",
             self._startup_cutoff_ms,
         )
+
+    def _load_account_email(self) -> str:
+        """Return the signed-in Gmail address when it can be fetched."""
+        try:
+            profile = self.service.users().getProfile(userId="me").execute()
+        except Exception as exc:
+            log.warning("Could not load Gmail profile email: %s", exc)
+            return ""
+
+        return str(profile.get("emailAddress", "")).strip().lower()
 
     def _list_message_ids_page(self, page_token: str | None = None, max_results: int = 25) -> dict:
         """Return one page of inbox message IDs."""
@@ -175,10 +186,12 @@ class GmailWatcher:
             "thread_id": msg.get("threadId", ""),
             "from": headers.get("From", ""),
             "to": headers.get("To", ""),
+            "cc": headers.get("Cc", ""),
             "subject": headers.get("Subject", ""),
             "date": headers.get("Date", ""),
             "body": body[:5000],
             "snippet": msg.get("snippet", ""),
+            "account_email": getattr(self, "_account_email", ""),
         }
 
     @staticmethod

@@ -8,8 +8,9 @@ event details are, action items, urgency, etc.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta
-from email.utils import parseaddr
+from email.utils import getaddresses, parseaddr
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse
 
@@ -220,6 +221,11 @@ def _event_context_text(parsed: dict, email_data: dict) -> str:
 def _sender_name(from_header: str) -> str | None:
     """Extract the display name from a From header."""
     name, address = parseaddr(from_header)
+    return _display_name(name, address)
+
+
+def _display_name(name: str, address: str) -> str | None:
+    """Return a human-readable name for an email identity."""
     cleaned_name = name.strip().strip('"')
     if cleaned_name:
         return cleaned_name
@@ -231,10 +237,93 @@ def _sender_name(from_header: str) -> str | None:
     return None
 
 
+def _normalise_email(address: str) -> str:
+    """Return a lowercase email address for comparisons."""
+    return address.strip().lower()
+
+
+def _normalise_text(text: str) -> str:
+    """Return a lowercase alphanumeric-only string for fuzzy matching."""
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _natural_join(values: list[str]) -> str:
+    """Join names in a compact natural-language form."""
+    if not values:
+        return ""
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f"{values[0]} and {values[1]}"
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
+def _other_party_names(parsed: dict, email_data: dict) -> list[str]:
+    """Return the human names of participants other than the signed-in Gmail user."""
+    user_email = _normalise_email(str(email_data.get("account_email", "")))
+    seen: set[str] = set()
+    user_identity_keys: set[str] = set()
+    parties: list[str] = []
+
+    for header_name in ("from", "to", "cc"):
+        header_value = email_data.get(header_name, "")
+        for name, address in getaddresses([header_value]):
+            normalized_address = _normalise_email(address)
+            display = _display_name(name, address)
+
+            if user_email and normalized_address == user_email:
+                if display:
+                    user_identity_keys.add(_normalise_text(display))
+                continue
+
+            if not display:
+                continue
+
+            dedupe_key = normalized_address or _normalise_text(display)
+            if not dedupe_key or dedupe_key in seen:
+                continue
+
+            seen.add(dedupe_key)
+            seen.add(_normalise_text(display))
+            parties.append(display)
+
+    organizer = ((parsed.get("event") or {}).get("organizer") or "").strip()
+    organizer_key = _normalise_text(organizer)
+    if organizer and organizer_key and organizer_key not in seen and organizer_key not in user_identity_keys:
+        seen.add(organizer_key)
+        parties.append(organizer)
+
+    return parties
+
+
+def _title_mentions_name(title: str, name: str) -> bool:
+    """Return true when a title already appears to mention a participant name."""
+    normalized_title = _normalise_text(title)
+    normalized_name = _normalise_text(name)
+    if normalized_name and normalized_name in normalized_title:
+        return True
+
+    meaningful_parts = [part for part in re.split(r"\s+", name) if len(part) > 2]
+    return any(_normalise_text(part) in normalized_title for part in meaningful_parts)
+
+
+def _ensure_title_mentions_parties(title: str, party_names: list[str]) -> str:
+    """Append other participants to an existing title when they are missing."""
+    missing = [name for name in party_names if not _title_mentions_name(title, name)]
+    if not missing:
+        return title
+
+    joined_missing = _natural_join(missing)
+    if re.search(r"\bwith\b", title, re.IGNORECASE):
+        return f"{title} and {joined_missing}"
+    return f"{title} with {joined_missing}"
+
+
 def _infer_event_title(parsed: dict, email_data: dict) -> str | None:
     """Infer a concise event title from the parsed summary, body, and sender."""
     context = _event_context_text(parsed, email_data)
-    sender = _sender_name(email_data.get("from", ""))
+    other_parties = _other_party_names(parsed, email_data)
+    joined_parties = _natural_join(other_parties)
 
     titled_patterns: tuple[tuple[tuple[str, ...], str], ...] = (
         (("lunch",), "Lunch"),
@@ -250,10 +339,10 @@ def _infer_event_title(parsed: dict, email_data: dict) -> str | None:
 
     for keywords, title_base in titled_patterns:
         if any(keyword in context for keyword in keywords):
-            if sender and title_base in {"Lunch", "Breakfast", "Brunch", "Dinner", "Coffee"}:
-                return f"{title_base} with {sender}"
-            if sender and title_base in {"Interview", "Meeting", "Phone Screen"}:
-                return f"{title_base} with {sender}"
+            if joined_parties and title_base in {"Lunch", "Breakfast", "Brunch", "Dinner", "Coffee"}:
+                return f"{title_base} with {joined_parties}"
+            if joined_parties and title_base in {"Interview", "Meeting", "Phone Screen"}:
+                return f"{title_base} with {joined_parties}"
             return title_base
 
     for candidate in (parsed.get("summary", ""), *(parsed.get("action_items") or [])):
@@ -303,6 +392,12 @@ def enrich_event_details(parsed: dict, email_data: dict) -> dict:
         inferred_title = _infer_event_title(parsed, email_data)
         if inferred_title:
             event["title"] = inferred_title
+
+    if event.get("title"):
+        event["title"] = _ensure_title_mentions_parties(
+            event["title"],
+            _other_party_names(parsed, email_data),
+        )
 
     if not event.get("end_time"):
         inferred_end_time = _infer_end_time(event.get("date"), event.get("start_time"), context)

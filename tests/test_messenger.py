@@ -14,9 +14,10 @@ def test_format_summary_for_event_is_informal_without_inline_email_link(monkeypa
             "has_event": True,
             "summary": "Meet Aryan for lunch at the Union at 3 PM.",
             "event": {
+                "title": "Lunch meeting with Aryan Gupta",
                 "date": "2099-04-01",
                 "start_time": "15:00",
-                "location": "1401 W Green St, Urbana, IL 61801",
+                "location": "Illini Union (1401 W Green St, Urbana, IL 61801)",
                 "is_online": False,
             },
         },
@@ -24,8 +25,8 @@ def test_format_summary_for_event_is_informal_without_inline_email_link(monkeypa
         source_email_link="https://mail.google.com/mail/u/0/#all/thread-123",
     )
 
-    assert "reminder: meet aryan for lunch at the union at 3pm!" in message
-    assert "location: 1401 W Green St, Urbana, IL 61801" in message
+    assert "reminder: lunch meeting w/ aryan at illini union!" in message
+    assert "location: Illini Union (1401 W Green St, Urbana, IL 61801)" in message
     assert "time: Apr 1 at 3:00 p.m." in message
     assert "leave by: 2:35 p.m." in message
     assert "original email:" not in message
@@ -51,6 +52,7 @@ async def test_send_summary_sends_email_link_as_follow_up_message(monkeypatch):
             "has_event": True,
             "summary": "Meet Aryan for lunch at the Union at 3 PM.",
             "event": {
+                "title": "Lunch meeting with Aryan Gupta",
                 "date": "2099-04-01",
                 "start_time": "15:00",
                 "location": "Illini Union (1401 W Green St, Urbana, IL 61801)",
@@ -61,7 +63,7 @@ async def test_send_summary_sends_email_link_as_follow_up_message(monkeypatch):
     )
 
     assert len(sent_messages) == 2
-    assert sent_messages[0].startswith("reminder: meet aryan for lunch at the union at 3pm!")
+    assert sent_messages[0].startswith("reminder: lunch meeting w/ aryan at illini union!")
     assert sent_messages[1] == "https://mail.google.com/mail/u/0/#all/thread-123"
 
 
@@ -85,6 +87,7 @@ async def test_send_summary_skips_email_link_when_text_email_links_disabled(monk
             "has_event": True,
             "summary": "Meet Aryan for lunch at the Union at 3 PM.",
             "event": {
+                "title": "Lunch meeting with Aryan Gupta",
                 "date": "2099-04-01",
                 "start_time": "15:00",
                 "location": "Illini Union (1401 W Green St, Urbana, IL 61801)",
@@ -95,7 +98,7 @@ async def test_send_summary_skips_email_link_when_text_email_links_disabled(monk
     )
 
     assert len(sent_messages) == 1
-    assert sent_messages[0].startswith("reminder: meet aryan for lunch at the union at 3pm!")
+    assert sent_messages[0].startswith("reminder: lunch meeting w/ aryan at illini union!")
 
 
 @pytest.mark.anyio

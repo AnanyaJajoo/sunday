@@ -100,6 +100,8 @@ def test_enrich_event_details_infers_title_and_end_time_for_lunch_email():
         },
         {
             "from": "Aryan Gupta <aryan05g@gmail.com>",
+            "to": "User <me@example.com>",
+            "account_email": "me@example.com",
             "subject": "",
             "body": "hey meet me for lunch at the illini union at 3:00 pm today",
         },
@@ -107,3 +109,71 @@ def test_enrich_event_details_infers_title_and_end_time_for_lunch_email():
 
     assert enriched["event"]["title"] == "Lunch with Aryan Gupta"
     assert enriched["event"]["end_time"] == "16:00"
+
+
+def test_enrich_event_details_adds_other_party_names_to_generic_title():
+    enriched = enrich_event_details(
+        {
+            "has_event": True,
+            "needs_response": False,
+            "urgency": "low",
+            "summary": "Lunch meeting at Illini Union today",
+            "event": {
+                "title": "Lunch meeting",
+                "date": "2026-04-01",
+                "start_time": "15:00",
+                "end_time": "16:00",
+                "location": "Illini Union",
+                "is_online": False,
+                "meeting_link": None,
+                "description": None,
+                "attendees": [],
+                "organizer": "Aryan Gupta",
+            },
+            "action_items": [],
+            "can_wait": True,
+        },
+        {
+            "from": "Aryan Gupta <aryan05g@gmail.com>",
+            "to": "User <me@example.com>",
+            "account_email": "me@example.com",
+            "subject": "",
+            "body": "hey meet me for lunch at the illini union at 3:00 pm today",
+        },
+    )
+
+    assert enriched["event"]["title"] == "Lunch meeting with Aryan Gupta"
+
+
+def test_enrich_event_details_excludes_the_user_when_sender_is_self():
+    enriched = enrich_event_details(
+        {
+            "has_event": True,
+            "needs_response": False,
+            "urgency": "low",
+            "summary": "Lunch today",
+            "event": {
+                "title": None,
+                "date": "2026-04-01",
+                "start_time": "15:00",
+                "end_time": None,
+                "location": "Illini Union",
+                "is_online": False,
+                "meeting_link": None,
+                "description": None,
+                "attendees": [],
+                "organizer": "Me",
+            },
+            "action_items": [],
+            "can_wait": True,
+        },
+        {
+            "from": "Me <me@example.com>",
+            "to": "Aryan Gupta <aryan05g@gmail.com>",
+            "account_email": "me@example.com",
+            "subject": "",
+            "body": "let's do lunch at the illini union at 3:00 pm today",
+        },
+    )
+
+    assert enriched["event"]["title"] == "Lunch with Aryan Gupta"

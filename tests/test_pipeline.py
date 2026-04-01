@@ -194,6 +194,8 @@ async def test_process_single_email_enriches_missing_title_and_end_time(monkeypa
             "id": "gmail-3",
             "thread_id": "thread-3",
             "from": "Aryan Gupta <aryan05g@gmail.com>",
+            "to": "User <me@example.com>",
+            "account_email": "me@example.com",
             "subject": "",
             "body": "hey meet me for lunch at the illini union at 3:00 pm today",
         },
@@ -206,6 +208,56 @@ async def test_process_single_email_enriches_missing_title_and_end_time(monkeypa
     assert calendar.last_event["title"] == "Lunch with Aryan Gupta"
     assert calendar.last_event["end_time"] == "16:00"
     assert calendar.last_event["location"] == "Illini Union (1401 W Green St, Urbana, IL 61801)"
+
+
+@pytest.mark.anyio
+async def test_process_single_email_adds_other_party_names_to_generic_event_title(monkeypatch):
+    async def fake_parse_email(email_data):
+        del email_data
+        return {
+            "has_event": True,
+            "needs_response": False,
+            "urgency": "low",
+            "summary": "Lunch meeting at Illini Union today",
+            "event": {
+                "title": "Lunch meeting",
+                "date": "2026-04-01",
+                "start_time": "15:00",
+                "end_time": "16:00",
+                "location": "Illini Union",
+                "is_online": False,
+            },
+            "action_items": [],
+            "can_wait": True,
+        }
+
+    async def fake_send_summary(**kwargs):
+        del kwargs
+        return None
+
+    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+
+    calendar = _FakeCalendar()
+    gmail = _FakeGmail()
+
+    result = await process_single_email(
+        {
+            "id": "gmail-3b",
+            "thread_id": "thread-3b",
+            "from": "Aryan Gupta <aryan05g@gmail.com>",
+            "to": "User <me@example.com>",
+            "account_email": "me@example.com",
+            "subject": "",
+            "body": "hey meet me for lunch at the illini union at 3:00 pm today",
+        },
+        gmail,
+        calendar,
+        _FakeTravel(),
+    )
+
+    assert result["calendar_status"] == "created"
+    assert calendar.last_event["title"] == "Lunch meeting with Aryan Gupta"
 
 
 @pytest.mark.anyio
