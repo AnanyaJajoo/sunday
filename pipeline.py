@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from calendar_manager import CalendarManager
@@ -15,7 +14,6 @@ from config import Config
 from email_parser import enrich_event_details, get_calendar_readiness_issues, parse_email, summarise_parsed
 from errors import ConfigurationError, TravelEstimationError
 from gmail_watcher import GmailWatcher
-from location_requests import create_location_request, wait_for_location_response
 from messenger import send_summary
 from travel_estimator import TravelEstimator
 
@@ -47,15 +45,6 @@ def _build_gmail_thread_link(email_data: dict) -> str | None:
         return f"https://mail.google.com/mail/u/0/#all/{message_id}"
 
     return None
-
-
-def _is_location_request_enabled() -> bool:
-    """Return true when the on-demand iPhone location request flow is configured."""
-    if not Config.request_phone_location or not Config.location_request_base_url:
-        return False
-
-    parsed = urlparse(Config.location_request_base_url)
-    return bool(parsed.scheme and parsed.netloc)
 
 
 def _event_start_dt(event: dict) -> datetime | None:
@@ -186,56 +175,8 @@ def _scheduled_origin_for_event(
     return best_origin
 
 
-def _should_request_phone_location(start_dt: datetime | None) -> bool:
-    """Return true when current phone location is relevant to this event."""
-    if start_dt is None or not _is_location_request_enabled():
-        return False
-
-    now = datetime.now(ZoneInfo(Config.timezone))
-    delta = start_dt - now
-    return 0 <= delta.total_seconds() <= Config.current_location_lookahead_hours * 3600
-
-
-async def _request_phone_origin_for_event(
-    event: dict,
-    email_data: dict,
-    processing_notes: list[str],
-) -> tuple[str | None, str | None]:
-    """
-    Request the phone's current location for one event and wait briefly for a reply.
-
-    Returns:
-        (origin_for_maps, human_readable_origin_address)
-    """
-    if not _is_location_request_enabled():
-        return None, None
-
-    try:
-        request = create_location_request(event, source_email_id=email_data.get("id"))
-        log.info("  → Waiting for phone location callback for %s", request["request_id"])
-    except (ConfigurationError, ValueError, RuntimeError) as exc:
-        log.warning("  → Phone location request unavailable: %s", exc)
-        processing_notes.append(f"Phone location request unavailable: {exc}")
-        return None, None
-    except Exception as exc:
-        log.warning("  → Phone location request setup failed: %s", exc)
-        processing_notes.append(f"Phone location request setup failed: {exc}")
-        return None, None
-
-    response = await wait_for_location_response(
-        request["request_id"],
-        Config.location_request_timeout_seconds,
-    )
-    if response is None:
-        processing_notes.append("Phone location request timed out; used fallback origin instead.")
-        return None, None
-
-    return f"{response['lat']},{response['lng']}", response.get("address")
-
-
 async def _choose_travel_origin(
     event: dict,
-    email_data: dict,
     calendar: CalendarManager,
     processing_notes: list[str],
 ) -> tuple[str | None, str | None, str | None]:
@@ -244,9 +185,8 @@ async def _choose_travel_origin(
 
     Priority:
       1. The latest scheduled calendar event with a location before this event
-      2. The phone's current location when the event is imminent
-      3. Configured work location during work hours
-      4. Configured home location
+      2. Configured work location during work hours
+      3. Configured home location
     """
     start_dt = _event_start_dt(event)
 
@@ -258,15 +198,6 @@ async def _choose_travel_origin(
     else:
         if scheduled_origin[0]:
             return scheduled_origin
-
-    if _should_request_phone_location(start_dt):
-        requested_origin, requested_origin_address = await _request_phone_origin_for_event(
-            event,
-            email_data,
-            processing_notes,
-        )
-        if requested_origin:
-            return requested_origin, requested_origin_address, "phone_request"
 
     return _default_origin_for_event(start_dt)
 
@@ -318,7 +249,6 @@ async def process_single_email(
                 routing_destination = event["location"]
                 origin_for_maps, origin_label, origin_source = await _choose_travel_origin(
                     event,
-                    email_data,
                     calendar,
                     processing_notes,
                 )

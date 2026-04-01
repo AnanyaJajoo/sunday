@@ -76,11 +76,10 @@ async def test_travel_estimator_uses_maps_response(monkeypatch):
 
     monkeypatch.setattr("travel_estimator.Config.google_maps_key", "test-key")
     monkeypatch.setattr("travel_estimator.Config.prep_time", 15)
-    monkeypatch.setattr(
-        "travel_estimator.get_current_location",
-        lambda: {"address": "Home", "source": "config"},
-    )
-    monkeypatch.setattr("travel_estimator.get_origin_string", lambda: "Home")
+    monkeypatch.setattr("travel_estimator.Config.default_home_location", "Home")
+    monkeypatch.setattr("travel_estimator.Config.default_home_lat", None)
+    monkeypatch.setattr("travel_estimator.Config.default_home_lng", None)
+    monkeypatch.setattr("travel_estimator.Config.default_work_location", "")
     monkeypatch.setattr(
         "travel_estimator.httpx.AsyncClient",
         lambda timeout: _FakeAsyncClient(payload),

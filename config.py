@@ -114,9 +114,6 @@ class Config:
     imessage_enabled: bool = os.getenv("IMESSAGE_ENABLED", "false").lower() == "true"
     imessage_recipient: str = os.getenv("IMESSAGE_RECIPIENT", "")
     text_email_links: bool = os.getenv("TEXT_EMAIL_LINKS", "false").lower() == "true"
-    request_phone_location: bool = os.getenv("REQUEST_PHONE_LOCATION", "false").lower() == "true"
-    location_request_base_url: str = os.getenv("LOCATION_REQUEST_BASE_URL", "").rstrip("/")
-    location_request_timeout_seconds: int = int(os.getenv("LOCATION_REQUEST_TIMEOUT_SECONDS", "20"))
 
     # ── Preferences ──
     default_home_location: str = _get_with_legacy("DEFAULT_HOME_LOCATION", "MY_DEFAULT_LOCATION", "")
@@ -128,9 +125,6 @@ class Config:
     work_days: list[str] = _get_csv("WORK_DAYS", "mon,tue,wed,thu,fri")
     workday_start_time: str = os.getenv("WORKDAY_START_TIME", "09:00")
     workday_end_time: str = os.getenv("WORKDAY_END_TIME", "17:00")
-    current_location_lookahead_hours: float = float(
-        os.getenv("CURRENT_LOCATION_LOOKAHEAD_HOURS", "4")
-    )
     if default_home_lat is None:
         default_home_lat = _get_optional_float("MY_DEFAULT_LATITUDE")
     if default_home_lng is None:
@@ -217,10 +211,6 @@ class Config:
             errors.append("LLM_RETRY_BASE_SECONDS must be greater than 0.")
         if cls.llm_requests_per_minute is not None and cls.llm_requests_per_minute < 1:
             errors.append("LLM_REQUESTS_PER_MINUTE must be at least 1 when set.")
-        if cls.location_request_timeout_seconds < 1:
-            errors.append("LOCATION_REQUEST_TIMEOUT_SECONDS must be at least 1.")
-        if cls.current_location_lookahead_hours <= 0:
-            errors.append("CURRENT_LOCATION_LOOKAHEAD_HOURS must be greater than 0.")
 
         if cls.telegram_token and not cls.telegram_chat_id:
             errors.append("TELEGRAM_CHAT_ID is required when TELEGRAM_BOT_TOKEN is set.")
@@ -234,11 +224,6 @@ class Config:
                 "No messaging output configured. "
                 "Summaries will fail until Telegram or iMessage is configured."
             )
-        if cls.request_phone_location and not cls.location_request_base_url:
-            warnings.append(
-                "REQUEST_PHONE_LOCATION is enabled but LOCATION_REQUEST_BASE_URL is not set. "
-                "The app will fall back to configured/default location until a callback URL is configured."
-            )
 
         if not cls.google_maps_key:
             warnings.append(
@@ -249,7 +234,7 @@ class Config:
         if not cls.default_home_location and not cls.default_work_location:
             warnings.append(
                 "DEFAULT_HOME_LOCATION and DEFAULT_WORK_LOCATION are not set. "
-                "Travel estimation requires a live location update or at least one configured default location."
+                "Travel estimation requires at least one configured default location."
             )
 
         if (cls.default_home_lat is None) != (cls.default_home_lng is None):

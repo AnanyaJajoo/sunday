@@ -2,7 +2,6 @@
 server.py — FastAPI web server.
 
 Exposes HTTP endpoints for:
-  - iOS Shortcut integration
   - Vercel cron job execution
   - Status and health checks
 """
@@ -19,12 +18,6 @@ from calendar_manager import CalendarManager
 from config import Config
 from day_planner import format_schedule, plan_day
 from errors import ConfigurationError
-from location_requests import (
-    get_pending_location_request,
-    record_latest_location_response,
-    record_location_response,
-)
-from location_state import get_current_location, update_location
 from pipeline import run_pipeline
 
 log = logging.getLogger(__name__)
@@ -59,20 +52,6 @@ class PlanDayRequest(BaseModel):
 class ProcessResponse(BaseModel):
     processed: int
     results: list[dict]
-
-
-class LocationUpdate(BaseModel):
-    lat: float
-    lng: float
-    address: str | None = None
-
-
-class LocationRequestResponse(BaseModel):
-    request_id: str
-    token: str
-    lat: float
-    lng: float
-    address: str | None = None
 
 
 def _ensure_pipeline_ready() -> None:
@@ -125,99 +104,6 @@ async def plan_day_endpoint(body: PlanDayRequest):
     except Exception as exc:
         log.exception("Day planner error: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.post("/api/location")
-async def post_location(body: LocationUpdate):
-    """Receive a live GPS fix from the user's phone."""
-    try:
-        state = update_location(body.lat, body.lng, body.address)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"status": "ok", "location": state}
-
-
-@app.post("/api/location/respond")
-async def respond_location_request(body: LocationRequestResponse):
-    """Receive a one-time location reply from the iPhone shortcut."""
-    try:
-        result = record_location_response(
-            request_id=body.request_id,
-            token=body.token,
-            lat=body.lat,
-            lng=body.lng,
-            address=body.address,
-        )
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"status": "ok", "location": result["location"], "request_id": body.request_id}
-
-
-@app.get("/api/location/request")
-async def get_pending_location():
-    """Return the next pending backend location request for the iPhone shortcut."""
-    try:
-        pending = get_pending_location_request()
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    if pending is None:
-        raise HTTPException(status_code=404, detail="No pending location request.")
-
-    return {"status": "pending", "request": pending}
-
-
-@app.get("/api/location/request/latest")
-async def get_pending_location_latest():
-    """Return pending-request status in a shortcut-friendly fixed shape."""
-    try:
-        pending = get_pending_location_request()
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    if pending is None:
-        return {"pending": False}
-
-    return {
-        "pending": True,
-        "event_title": pending.get("event_title", ""),
-        "event_date": pending.get("event_date", ""),
-        "event_start_time": pending.get("event_start_time", ""),
-        "event_location": pending.get("event_location", ""),
-    }
-
-
-@app.post("/api/location/respond/latest")
-async def respond_latest_location_request(body: LocationUpdate):
-    """Receive a one-time location reply for the oldest pending request."""
-    try:
-        result = record_latest_location_response(
-            lat=body.lat,
-            lng=body.lng,
-            address=body.address,
-        )
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {
-        "status": "ok",
-        "location": result["location"],
-        "request_id": result["request"]["request_id"],
-    }
-
-
-@app.get("/api/location")
-async def get_location():
-    """Return the current location being used for travel estimates."""
-    try:
-        return get_current_location()
-    except ConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/status")

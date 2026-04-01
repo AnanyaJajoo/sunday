@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from urllib.parse import urlparse
 
 from config import Config
 from errors import ConfigurationError
@@ -35,42 +34,6 @@ def _assert_startup_ready() -> None:
         raise ConfigurationError("Startup validation failed.")
 
 
-async def _maybe_start_location_callback_server():
-    """Start the embedded callback server when on-demand phone location is enabled."""
-    if not Config.request_phone_location or not Config.location_request_base_url:
-        return None, None
-
-    parsed = urlparse(Config.location_request_base_url)
-    if not parsed.scheme or not parsed.netloc:
-        log.warning(
-            "REQUEST_PHONE_LOCATION is enabled but LOCATION_REQUEST_BASE_URL is invalid: %s",
-            Config.location_request_base_url,
-        )
-        return None, None
-
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
-
-    from server import app
-    import uvicorn
-
-    server = uvicorn.Server(
-        uvicorn.Config(
-            app,
-            host="0.0.0.0",
-            port=port,
-            log_level="warning",
-            access_log=False,
-        )
-    )
-    task = asyncio.create_task(server.serve())
-    log.info(
-        "Phone location callback server listening on %s via 0.0.0.0:%d",
-        Config.location_request_base_url,
-        port,
-    )
-    return server, task
-
-
 async def main() -> None:
     _assert_startup_ready()
 
@@ -82,7 +45,6 @@ async def main() -> None:
     )
     log.info("Poll interval: %ds", Config.poll_interval)
     log.info("Max emails per cycle: %d", Config.max_emails_per_cycle)
-    callback_server, callback_task = await _maybe_start_location_callback_server()
 
     try:
         while True:
@@ -100,11 +62,6 @@ async def main() -> None:
                 log.error("Unexpected error in main loop: %s", exc, exc_info=True)
 
             await asyncio.sleep(Config.poll_interval)
-    finally:
-        if callback_server is not None:
-            callback_server.should_exit = True
-        if callback_task is not None:
-            await callback_task
 
 
 if __name__ == "__main__":

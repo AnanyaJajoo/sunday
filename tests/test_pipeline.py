@@ -351,72 +351,6 @@ async def test_process_single_email_still_creates_event_when_travel_estimate_fai
 
 
 @pytest.mark.anyio
-async def test_process_single_email_requests_phone_location_and_uses_reply(monkeypatch):
-    async def fake_parse_email(email_data):
-        del email_data
-        return {
-            "has_event": True,
-            "needs_response": False,
-            "urgency": "low",
-            "summary": "Lunch today",
-            "event": {
-                "title": "Lunch with Aryan Gupta",
-                "date": "2026-04-01",
-                "start_time": "15:00",
-                "end_time": "16:00",
-                "location": "Illini Union",
-                "is_online": False,
-            },
-            "action_items": [],
-            "can_wait": True,
-        }
-
-    async def fake_send_summary(**kwargs):
-        del kwargs
-        return None
-
-    async def fake_wait_for_location_response(request_id, timeout_seconds):
-        del request_id, timeout_seconds
-        return {
-            "lat": 40.1106,
-            "lng": -88.2272,
-            "address": "Illini Union",
-        }
-
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline.wait_for_location_response", fake_wait_for_location_response)
-    monkeypatch.setattr("pipeline._should_request_phone_location", lambda start_dt: True)
-    monkeypatch.setattr(
-        "pipeline.create_location_request",
-        lambda event, source_email_id=None: {
-            "request_id": "req-1",
-            "token": "token-1",
-            "event_title": event["title"],
-            "event_location": event["location"],
-            "event_start_time": event["start_time"],
-            "callback_url": "http://192.168.1.10:8000/api/location/respond",
-        },
-    )
-    monkeypatch.setattr("pipeline.Config.request_phone_location", True)
-    monkeypatch.setattr("pipeline.Config.location_request_base_url", "http://192.168.1.10:8000")
-
-    calendar = _FakeCalendar()
-    gmail = _FakeGmail()
-    travel = _FakeTravel()
-
-    result = await process_single_email(
-        {"id": "gmail-6", "thread_id": "thread-6", "body": "lunch"},
-        gmail,
-        calendar,
-        travel,
-    )
-
-    assert result["calendar_status"] == "created"
-    assert travel.last_estimate_args["origin"] == "40.1106,-88.2272"
-
-
-@pytest.mark.anyio
 async def test_process_single_email_uses_work_origin_during_work_hours(monkeypatch):
     async def fake_parse_email(email_data):
         del email_data
@@ -443,7 +377,6 @@ async def test_process_single_email_uses_work_origin_during_work_hours(monkeypat
 
     monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
     monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline._should_request_phone_location", lambda start_dt: False)
     monkeypatch.setattr("pipeline.Config.default_home_location", "Home")
     monkeypatch.setattr("pipeline.Config.default_home_lat", None)
     monkeypatch.setattr("pipeline.Config.default_home_lng", None)
@@ -498,7 +431,6 @@ async def test_process_single_email_uses_home_origin_outside_work_hours(monkeypa
 
     monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
     monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline._should_request_phone_location", lambda start_dt: False)
     monkeypatch.setattr("pipeline.Config.default_home_location", "Home")
     monkeypatch.setattr("pipeline.Config.default_home_lat", None)
     monkeypatch.setattr("pipeline.Config.default_home_lng", None)
@@ -552,7 +484,6 @@ async def test_process_single_email_uses_latest_prior_calendar_location_as_origi
 
     monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
     monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline._should_request_phone_location", lambda start_dt: False)
     monkeypatch.setattr("pipeline.Config.default_home_location", "Home")
     monkeypatch.setattr("pipeline.Config.default_work_location", "Office")
 

@@ -10,6 +10,7 @@ import json
 import logging
 from datetime import datetime
 
+from config import Config
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from errors import DayPlanningError
@@ -83,11 +84,10 @@ async def plan_day(
     Raises:
         DayPlanningError: If the LLM cannot return valid structured output.
     """
-    from location_state import get_current_location
-
-    loc = get_current_location()
-    location = user_location or loc["address"]
-    location_source = loc["source"] if not user_location else "override"
+    location = user_location or Config.default_home_location or Config.default_work_location or "Unknown"
+    location_source = "override" if user_location else (
+        "home" if Config.default_home_location else "work" if Config.default_work_location else "unknown"
+    )
     log.debug("Day planner origin: %s (source: %s)", location, location_source)
 
     simplified_events = [

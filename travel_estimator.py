@@ -11,7 +11,6 @@ import httpx
 
 from config import Config
 from errors import ConfigurationError, TravelEstimationError
-from location_state import get_current_location, get_origin_string
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +29,27 @@ class TravelEstimator:
 
     BASE_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
     GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+
+    @staticmethod
+    def _default_origin() -> tuple[str | None, dict]:
+        """Return the best configured fallback origin for standalone travel estimates."""
+        if Config.default_home_location:
+            origin = (
+                f"{Config.default_home_lat},{Config.default_home_lng}"
+                if Config.default_home_lat is not None and Config.default_home_lng is not None
+                else Config.default_home_location
+            )
+            return origin, {"address": Config.default_home_location, "source": "home"}
+
+        if Config.default_work_location:
+            origin = (
+                f"{Config.default_work_lat},{Config.default_work_lng}"
+                if Config.default_work_lat is not None and Config.default_work_lng is not None
+                else Config.default_work_location
+            )
+            return origin, {"address": Config.default_work_location, "source": "work"}
+
+        return None, {"address": None, "source": "unknown"}
 
     @staticmethod
     def _clean_formatted_address(address: str) -> str:
@@ -132,13 +152,12 @@ class TravelEstimator:
                 "source": origin_source or "explicit",
             }
         else:
-            _origin = get_origin_string()
-            loc_info = get_current_location()
+            _origin, loc_info = self._default_origin()
 
         if not _origin:
             raise TravelEstimationError(
                 "No origin is available for travel estimation. Configure DEFAULT_HOME_LOCATION "
-                "or send a live location update."
+                "or DEFAULT_WORK_LOCATION."
             )
 
         log.debug("Travel origin: %s (source: %s)", _origin, loc_info["source"])
