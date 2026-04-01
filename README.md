@@ -142,6 +142,7 @@ Steps:
 Other providers are supported too:
 - OpenRouter
 - Groq
+- Cerebras
 - Ollama
 - Together
 - Mistral
@@ -149,6 +150,28 @@ Other providers are supported too:
 - Custom OpenAI-compatible endpoint
 
 Only configure the provider you actually plan to use.
+
+### Cerebras setup
+
+If Gemini is rate-limiting you, Cerebras is a good fast fallback for this app.
+
+1. Create an API key in Cerebras Cloud.
+2. In `config.env`, set:
+   - `ACTIVE_LLM_PROVIDER=cerebras`
+   - `CEREBRAS_API_KEY=...`
+   - `CEREBRAS_MODEL=llama3.1-8b`
+3. If you are on the free tier, optionally set `LLM_REQUESTS_PER_MINUTE=25` to stay a bit under Cerebras's published 30 RPM free-tier limit.
+
+Example:
+
+```env
+ACTIVE_LLM_PROVIDER=cerebras
+CEREBRAS_API_KEY=your_key_here
+CEREBRAS_MODEL=llama3.1-8b
+LLM_REQUESTS_PER_MINUTE=25
+```
+
+The app talks to Cerebras through its OpenAI-compatible `/v1/chat/completions` API, so no extra code or SDK install is needed once those env vars are set.
 
 ## Messaging Setup
 

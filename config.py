@@ -55,6 +55,11 @@ class Config:
             "model": os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
             "base_url": "https://api.groq.com/openai/v1",
         },
+        "cerebras": {
+            "api_key": os.getenv("CEREBRAS_API_KEY", ""),
+            "model": os.getenv("CEREBRAS_MODEL", "llama3.1-8b"),
+            "base_url": "https://api.cerebras.ai/v1",
+        },
         "ollama": {
             "api_key": "",
             "model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"),

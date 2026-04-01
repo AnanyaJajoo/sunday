@@ -96,3 +96,12 @@ async def test_post_with_retries_raises_clear_error_after_final_429(monkeypatch)
         )
 
     assert "rate limiting" in str(exc.value)
+
+
+def test_resolve_requests_per_minute_uses_cerebras_default(monkeypatch):
+    client = object.__new__(LLMClient)
+    client.provider = "cerebras"
+
+    monkeypatch.setattr("llm_client.Config.llm_requests_per_minute", None)
+
+    assert client._resolve_requests_per_minute() == 25

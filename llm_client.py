@@ -2,7 +2,7 @@
 llm_client.py — Unified LLM client.
 
 The rest of the app calls `llm.complete()` and never thinks about
-which provider is behind it. Supports Gemini, OpenRouter, Groq,
+which provider is behind it. Supports Gemini, OpenRouter, Groq, Cerebras,
 Together AI, Mistral, Ollama, HuggingFace, and any custom
 OpenAI-compatible endpoint.
 """
@@ -88,6 +88,8 @@ class LLMClient:
             return Config.llm_requests_per_minute
         if self.provider == "gemini":
             return 12
+        if self.provider == "cerebras":
+            return 25
         if self.provider == "groq":
             return 20
         return 60
