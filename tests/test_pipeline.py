@@ -31,6 +31,8 @@ class _FakeTravel:
 
 @pytest.mark.anyio
 async def test_process_single_email_marks_processed_after_success(monkeypatch):
+    send_kwargs = {}
+
     async def fake_parse_email(email_data):
         del email_data
         return {
@@ -50,6 +52,7 @@ async def test_process_single_email_marks_processed_after_success(monkeypatch):
         }
 
     async def fake_send_summary(**kwargs):
+        send_kwargs.update(kwargs)
         return None
 
     monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
@@ -57,7 +60,7 @@ async def test_process_single_email_marks_processed_after_success(monkeypatch):
 
     gmail = _FakeGmail()
     result = await process_single_email(
-        {"id": "gmail-1", "subject": "hello"},
+        {"id": "gmail-1", "thread_id": "thread-1", "subject": "hello"},
         gmail,
         _FakeCalendar(),
         _FakeTravel(),
@@ -65,6 +68,7 @@ async def test_process_single_email_marks_processed_after_success(monkeypatch):
 
     assert gmail.processed_ids == ["gmail-1"]
     assert result["calendar_status"] == "created"
+    assert send_kwargs["source_email_link"] == "https://mail.google.com/mail/u/0/#all/thread-1"
 
 
 @pytest.mark.anyio

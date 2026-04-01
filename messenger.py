@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -14,6 +16,47 @@ from config import Config
 from errors import MessagingDeliveryError
 
 log = logging.getLogger(__name__)
+
+
+def _trim_sentence(text: str) -> str:
+    """Remove trailing sentence punctuation without changing the content."""
+    return text.strip().rstrip(".!?").strip()
+
+
+def _format_time_label(date_str: str | None, start_time: str | None) -> str | None:
+    """Return a friendly time label like '3:00 p.m.' or 'Apr 4 at 3:00 p.m.'."""
+    if not date_str or not start_time:
+        return None
+
+    try:
+        event_dt = datetime.strptime(f"{date_str} {start_time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+    today = datetime.now(ZoneInfo(Config.timezone)).date()
+    time_label = event_dt.strftime("%I:%M %p").lstrip("0").lower().replace("am", "a.m.").replace(
+        "pm", "p.m."
+    )
+
+    if event_dt.date() == today:
+        return time_label
+
+    return f"{event_dt.strftime('%b %d').replace(' 0', ' ')} at {time_label}"
+
+
+def _format_leave_by_label(departure_time: str | None) -> str | None:
+    """Return a friendly leave-by label."""
+    if not departure_time:
+        return None
+
+    try:
+        departure_dt = datetime.strptime(departure_time.strip(), "%I:%M %p")
+    except ValueError:
+        return departure_time
+
+    return departure_dt.strftime("%I:%M %p").lstrip("0").lower().replace("am", "a.m.").replace(
+        "pm", "p.m."
+    )
 
 
 class TelegramMessenger:
@@ -91,51 +134,53 @@ def format_summary(
     calendar_status: str = "not_applicable",
     travel_info: dict | None = None,
     processing_notes: list[str] | None = None,
+    source_email_link: str | None = None,
 ) -> str:
     """Format a parsed email dict into a human-readable message."""
     notes = processing_notes or []
-    lines: list[str] = ["New Email"]
+    summary = _trim_sentence(parsed_email.get("summary", "new email")) or "new email"
+    event = parsed_email.get("event") or {}
+    lines: list[str] = []
 
-    if parsed_email.get("summary"):
-        lines.append(f"Summary: {parsed_email['summary']}")
+    if parsed_email.get("has_event"):
+        lines.append(f"reminder: {summary}!")
+        if event.get("location"):
+            lines.append(f"location: {event['location']}")
 
-    urgency = parsed_email.get("urgency", "none")
-    if urgency and urgency != "none":
-        lines.append(f"Urgency: {urgency.title()}")
+        time_label = _format_time_label(event.get("date"), event.get("start_time"))
+        if time_label:
+            lines.append(f"time: {time_label}")
 
-    if parsed_email.get("needs_response"):
-        lines.append("Needs your response.")
+        if event.get("is_online") and event.get("meeting_link"):
+            lines.append(f"join: {event['meeting_link']}")
 
-    if parsed_email.get("action_items"):
-        lines.append("Action items:")
-        for item in parsed_email["action_items"]:
-            lines.append(f"- {item}")
+        leave_by = _format_leave_by_label((travel_info or {}).get("departure_time"))
+        if leave_by:
+            lines.append(f"leave by: {leave_by}")
 
-    if calendar_status == "created":
-        event = parsed_email.get("event") or {}
-        lines.append(f'Calendar event created: "{event.get("title", "Event")}"')
-    elif calendar_status == "existing":
-        lines.append("Calendar already has this event.")
-    elif calendar_status == "skipped_incomplete":
-        lines.append("Calendar event was not created because required scheduling details were missing.")
+        if calendar_status == "skipped_incomplete":
+            lines.append("calendar: not added yet")
+    else:
+        lines.append(f"update: {summary}")
 
-    if travel_info and travel_info.get("travel_minutes"):
-        departure = travel_info.get("departure_time")
-        if departure:
-            lines.append(
-                f"Leave by {departure} "
-                f"({travel_info['travel_minutes']} min travel + {Config.prep_time} min prep)"
-            )
-        else:
-            lines.append(f"Travel time: {travel_info['travel_minutes']} min")
+        urgency = parsed_email.get("urgency", "none")
+        if urgency and urgency != "none":
+            lines.append(f"urgency: {urgency}")
 
-    if parsed_email.get("can_wait"):
-        lines.append("This can wait.")
+        if parsed_email.get("needs_response"):
+            lines.append("needs a reply")
 
-    if notes:
-        lines.append("Processing notes:")
-        for note in notes:
-            lines.append(f"- {note}")
+        for item in parsed_email.get("action_items", []):
+            lines.append(f"to do: {item}")
+
+        if parsed_email.get("can_wait"):
+            lines.append("this can wait")
+
+    for note in notes:
+        lines.append(f"note: {note}")
+
+    if source_email_link:
+        lines.append(f"original email: {source_email_link}")
 
     return "\n".join(lines)
 
@@ -145,6 +190,7 @@ async def send_summary(
     calendar_status: str = "not_applicable",
     travel_info: dict | None = None,
     processing_notes: list[str] | None = None,
+    source_email_link: str | None = None,
 ) -> None:
     """
     Format and dispatch a summary to all configured messaging channels.
@@ -152,7 +198,13 @@ async def send_summary(
     Raises:
         MessagingDeliveryError: If no configured channel can deliver the summary.
     """
-    message = format_summary(parsed_email, calendar_status, travel_info, processing_notes)
+    message = format_summary(
+        parsed_email,
+        calendar_status,
+        travel_info,
+        processing_notes,
+        source_email_link,
+    )
 
     telegram = TelegramMessenger()
     imessage = IMessageSender()

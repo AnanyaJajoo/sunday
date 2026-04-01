@@ -172,6 +172,7 @@ class GmailWatcher:
 
         return {
             "id": msg["id"],
+            "thread_id": msg.get("threadId", ""),
             "from": headers.get("From", ""),
             "to": headers.get("To", ""),
             "subject": headers.get("Subject", ""),

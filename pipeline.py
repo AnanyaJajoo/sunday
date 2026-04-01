@@ -21,6 +21,19 @@ _calendar: CalendarManager | None = None
 _travel: TravelEstimator | None = None
 
 
+def _build_gmail_thread_link(email_data: dict) -> str | None:
+    """Return a Gmail web link for the source email thread when possible."""
+    thread_id = (email_data.get("thread_id") or "").strip()
+    if thread_id:
+        return f"https://mail.google.com/mail/u/0/#all/{thread_id}"
+
+    message_id = (email_data.get("id") or "").strip()
+    if message_id:
+        return f"https://mail.google.com/mail/u/0/#all/{message_id}"
+
+    return None
+
+
 def _get_singletons() -> tuple[GmailWatcher, CalendarManager, TravelEstimator]:
     global _gmail, _calendar, _travel
     if _gmail is None:
@@ -85,6 +98,7 @@ async def process_single_email(
         calendar_status=calendar_status,
         travel_info=travel_info,
         processing_notes=processing_notes,
+        source_email_link=_build_gmail_thread_link(email_data),
     )
     log.info("  → Summary sent")
 
