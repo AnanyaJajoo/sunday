@@ -18,11 +18,11 @@ from calendar_manager import CalendarManager
 from config import Config
 from day_planner import format_schedule, plan_day
 from errors import ConfigurationError
+from logging_utils import setup_logging
 from pipeline import run_pipeline, send_due_leave_alerts
 
+setup_logging(Config.log_level)
 log = logging.getLogger(__name__)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @asynccontextmanager

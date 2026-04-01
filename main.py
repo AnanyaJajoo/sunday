@@ -11,15 +11,10 @@ import logging
 
 from config import Config
 from errors import ConfigurationError
+from logging_utils import setup_logging
 from pipeline import run_pipeline, send_due_leave_alerts
 
-logging.basicConfig(
-    level=getattr(logging, Config.log_level.upper(), logging.INFO),
-    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-    datefmt="%H:%M:%S",
-)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
+setup_logging(Config.log_level, force=True)
 log = logging.getLogger("smart-calendar")
 
 
