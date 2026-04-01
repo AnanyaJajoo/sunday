@@ -352,8 +352,6 @@ async def test_process_single_email_still_creates_event_when_travel_estimate_fai
 
 @pytest.mark.anyio
 async def test_process_single_email_requests_phone_location_and_uses_reply(monkeypatch):
-    requested_messages: list[str] = []
-
     async def fake_parse_email(email_data):
         del email_data
         return {
@@ -377,10 +375,6 @@ async def test_process_single_email_requests_phone_location_and_uses_reply(monke
         del kwargs
         return None
 
-    async def fake_send_phone_location_request(message):
-        requested_messages.append(message)
-        return None
-
     async def fake_wait_for_location_response(request_id, timeout_seconds):
         del request_id, timeout_seconds
         return {
@@ -391,7 +385,6 @@ async def test_process_single_email_requests_phone_location_and_uses_reply(monke
 
     monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
     monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline.send_phone_location_request", fake_send_phone_location_request)
     monkeypatch.setattr("pipeline.wait_for_location_response", fake_wait_for_location_response)
     monkeypatch.setattr("pipeline._should_request_phone_location", lambda start_dt: True)
     monkeypatch.setattr(
@@ -404,10 +397,6 @@ async def test_process_single_email_requests_phone_location_and_uses_reply(monke
             "event_start_time": event["start_time"],
             "callback_url": "http://192.168.1.10:8000/api/location/respond",
         },
-    )
-    monkeypatch.setattr(
-        "pipeline.format_location_request_message",
-        lambda request: f"SUNDAY_LOCATION_REQUEST {request['request_id']}",
     )
     monkeypatch.setattr("pipeline.Config.request_phone_location", True)
     monkeypatch.setattr("pipeline.Config.location_request_base_url", "http://192.168.1.10:8000")
@@ -424,7 +413,6 @@ async def test_process_single_email_requests_phone_location_and_uses_reply(monke
     )
 
     assert result["calendar_status"] == "created"
-    assert requested_messages == ["SUNDAY_LOCATION_REQUEST req-1"]
     assert travel.last_estimate_args["origin"] == "40.1106,-88.2272"
 
 

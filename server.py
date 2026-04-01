@@ -19,7 +19,7 @@ from calendar_manager import CalendarManager
 from config import Config
 from day_planner import format_schedule, plan_day
 from errors import ConfigurationError
-from location_requests import record_location_response
+from location_requests import get_pending_location_request, record_location_response
 from location_state import get_current_location, update_location
 from pipeline import run_pipeline
 
@@ -151,6 +151,20 @@ async def respond_location_request(body: LocationRequestResponse):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"status": "ok", "location": result["location"], "request_id": body.request_id}
+
+
+@app.get("/api/location/request")
+async def get_pending_location():
+    """Return the next pending backend location request for the iPhone shortcut."""
+    try:
+        pending = get_pending_location_request()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if pending is None:
+        raise HTTPException(status_code=404, detail="No pending location request.")
+
+    return {"status": "pending", "request": pending}
 
 
 @app.get("/api/location")

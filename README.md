@@ -377,13 +377,15 @@ If you run the FastAPI server, you get:
 - `POST /api/process`
 - `GET /api/location`
 - `POST /api/location`
+- `GET /api/location/request`
 - `POST /api/location/respond`
 - `POST /api/plan-day`
 
 ### On-demand iPhone location
 
-Instead of streaming location constantly, the app can request your phone's
-current location only when it needs to calculate travel for an in-person event.
+Instead of streaming location constantly, the app can create a backend
+location request only when it needs to calculate travel for an in-person event.
+Your iPhone Shortcut can then poll for that pending request and answer it.
 
 Set these in `config.env`:
 - `REQUEST_PHONE_LOCATION=true`
@@ -400,39 +402,20 @@ uv run python main.py
 When `REQUEST_PHONE_LOCATION=true`, `main.py` also starts the callback server
 that receives your phone's reply.
 
-Create an iPhone personal automation in Shortcuts:
-1. Trigger: `Message`
-2. Sender: your own iMessage contact or the Mac/iMessage sender you use for the app
-3. Condition: message contains `SUNDAY_LOCATION_REQUEST`
-4. Action: run a shortcut like `Sunday Send Location`
+If your Mac and iPhone are on Tailscale, set:
 
-Inside the `Sunday Send Location` shortcut:
-1. Read `Shortcut Input` as text
-2. Extract these three lines from the message:
-   - `request_id=...`
-   - `token=...`
-   - `callback_url=...`
-3. `Get Current Location`
-4. `Get Details of Location` for:
-   - latitude
-   - longitude
-   - name or street address
-5. `Get Contents of URL`
-   - URL: the extracted `callback_url`
-   - Method: `POST`
-   - Request Body: `JSON`
-
-JSON body:
-
-```json
-{
-  "request_id": "extracted request_id",
-  "token": "extracted token",
-  "lat": 40.1106,
-  "lng": -88.2272,
-  "address": "Illini Union"
-}
+```env
+LOCATION_REQUEST_BASE_URL=http://<your-mac-tailscale-host-or-ip>:8000
 ```
+
+Then build the iPhone Shortcut described in [shortcuts/Sunday Location Poller.md](/Users/aryan/Desktop/sunday/shortcuts/Sunday Location Poller.md).
+
+The flow is:
+1. backend creates a pending request
+2. iPhone Shortcut calls `GET /api/location/request`
+3. if a request exists, the Shortcut gets current location
+4. the Shortcut posts it to `POST /api/location/respond`
+5. the worker uses that fresh GPS fix if it arrives in time
 
 If the phone replies in time, travel estimates use that fresh GPS fix.
 If it does not, the app falls back to intelligent origin inference:

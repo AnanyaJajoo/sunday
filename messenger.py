@@ -336,25 +336,3 @@ async def send_summary(
     if not sent_any:
         raise MessagingDeliveryError("; ".join(errors) or "No messaging channel delivered the summary.")
 
-
-async def send_phone_location_request(message: str) -> None:
-    """
-    Send a one-off phone location request prompt.
-
-    Prefers iMessage because the intended receiver is the user's iPhone.
-    Falls back to Telegram only if iMessage is not enabled.
-    """
-    telegram = TelegramMessenger()
-    imessage = IMessageSender()
-
-    if Config.imessage_enabled:
-        await imessage.send(message)
-        return
-
-    if Config.telegram_token and Config.telegram_chat_id:
-        await telegram.send(message)
-        return
-
-    raise MessagingDeliveryError(
-        "No phone-reachable messaging channel is configured for location requests."
-    )

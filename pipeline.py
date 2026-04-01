@@ -15,8 +15,8 @@ from config import Config
 from email_parser import enrich_event_details, get_calendar_readiness_issues, parse_email, summarise_parsed
 from errors import ConfigurationError, TravelEstimationError
 from gmail_watcher import GmailWatcher
-from location_requests import create_location_request, format_location_request_message, wait_for_location_response
-from messenger import send_phone_location_request, send_summary
+from location_requests import create_location_request, wait_for_location_response
+from messenger import send_summary
 from travel_estimator import TravelEstimator
 
 log = logging.getLogger(__name__)
@@ -212,14 +212,14 @@ async def _request_phone_origin_for_event(
 
     try:
         request = create_location_request(event, source_email_id=email_data.get("id"))
-        await send_phone_location_request(format_location_request_message(request))
+        log.info("  → Waiting for phone location callback for %s", request["request_id"])
     except (ConfigurationError, ValueError, RuntimeError) as exc:
         log.warning("  → Phone location request unavailable: %s", exc)
         processing_notes.append(f"Phone location request unavailable: {exc}")
         return None, None
     except Exception as exc:
-        log.warning("  → Phone location request failed: %s", exc)
-        processing_notes.append(f"Phone location request failed: {exc}")
+        log.warning("  → Phone location request setup failed: %s", exc)
+        processing_notes.append(f"Phone location request setup failed: {exc}")
         return None, None
 
     response = await wait_for_location_response(

@@ -1,8 +1,9 @@
 """
 location_requests.py — One-time phone location request flow.
 
-Creates short-lived location requests, waits for a matching phone response,
-and stores the returned GPS fix as the latest live location.
+Creates short-lived backend location requests, lets an iPhone Shortcut poll
+for the next pending request, and stores the returned GPS fix as the latest
+live location.
 """
 from __future__ import annotations
 
@@ -19,7 +20,6 @@ from location_state import update_location
 from state_store import get_state_dir, get_state_file
 
 _REQUESTS_FILE = get_state_file("location_requests.json")
-REQUEST_TRIGGER_PHRASE = "SUNDAY_LOCATION_REQUEST"
 
 
 def _utc_now() -> datetime:
@@ -95,28 +95,40 @@ def create_location_request(event: dict, source_email_id: str | None = None) -> 
     return request
 
 
-def format_location_request_message(request: dict) -> str:
-    """Return a human-plus-machine-readable message for the iPhone shortcut."""
-    event_title = request.get("event_title", "upcoming event").strip() or "upcoming event"
-    event_location = request.get("event_location", "").strip()
-    event_start_time = request.get("event_start_time", "").strip()
+def get_pending_location_request() -> dict | None:
+    """Return the oldest still-pending location request, if one exists."""
+    requests = _prune_requests(_load_requests())
+    now = _utc_now()
+    updated = False
 
-    lines = [
-        f"sunday: share your current location for {event_title.lower()}",
-    ]
-    if event_location:
-        lines.append(f"destination: {event_location}")
-    if event_start_time:
-        lines.append(f"event time: {event_start_time}")
-    lines.extend(
-        [
-            REQUEST_TRIGGER_PHRASE,
-            f"request_id={request['request_id']}",
-            f"token={request['token']}",
-            f"callback_url={request['callback_url']}",
-        ]
-    )
-    return "\n".join(lines)
+    for request in requests:
+        expires_at = _parse_iso8601(request.get("expires_at"))
+        if expires_at and expires_at < now and request.get("status") == "pending":
+            request["status"] = "expired"
+            updated = True
+            continue
+
+        if request.get("status") != "pending":
+            continue
+
+        if updated:
+            _save_requests(requests)
+
+        return {
+            "request_id": request["request_id"],
+            "token": request["token"],
+            "event_title": request.get("event_title", ""),
+            "event_date": request.get("event_date", ""),
+            "event_start_time": request.get("event_start_time", ""),
+            "event_location": request.get("event_location", ""),
+            "callback_url": request.get("callback_url", ""),
+            "created_at": request.get("created_at", ""),
+            "expires_at": request.get("expires_at", ""),
+        }
+
+    if updated:
+        _save_requests(requests)
+    return None
 
 
 def record_location_response(
