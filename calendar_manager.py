@@ -223,9 +223,12 @@ class CalendarManager:
             parts.append(f"Meeting link: {parsed_event['meeting_link']}")
 
         if travel_info:
+            travel_text = (travel_info.get("travel_text") or "").strip()
+            if not travel_text:
+                travel_minutes = int(travel_info.get("travel_minutes") or 0)
+                travel_text = f"{travel_minutes} min" if travel_minutes == 1 else f"{travel_minutes} mins"
             parts.append(
-                f"Travel: {travel_info['travel_minutes']} min "
-                f"({travel_info.get('travel_text', '')}) from {travel_info.get('origin', '')}"
+                f"Estimated travel at creation: {travel_text} from {travel_info.get('origin', '')}"
             )
             if travel_info.get("departure_time"):
                 parts.append(f"Leave by: {travel_info['departure_time']}")

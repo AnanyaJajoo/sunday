@@ -131,3 +131,23 @@ def test_compute_smart_reminders_keeps_day_before_for_interview(monkeypatch):
 
     assert {"method": "popup", "minutes": 5} in reminders
     assert {"method": "popup", "minutes": 1440} in reminders
+
+
+def test_build_description_uses_single_travel_text_snapshot():
+    description = CalendarManager._build_description(
+        {
+            "description": "",
+            "meeting_link": None,
+            "organizer": "Aryan Gupta",
+        },
+        {
+            "travel_minutes": 3,
+            "travel_text": "3 mins",
+            "origin": "Campus Circle Urbana",
+            "departure_time": "9:42 PM",
+        },
+    )
+
+    assert "Estimated travel at creation: 3 mins from Campus Circle Urbana" in description
+    assert "Travel: 3 min (3 mins)" not in description
+    assert "Leave by: 9:42 PM" in description
