@@ -89,9 +89,6 @@ class CalendarManager:
         if parsed_event.get("location"):
             event_body["location"] = parsed_event["location"]
 
-        if parsed_event.get("attendees"):
-            event_body["attendees"] = [{"email": email} for email in parsed_event["attendees"]]
-
         leave_alert_at = self._compute_leave_alert_at(start_dt, parsed_event, travel_info)
         private_properties: dict[str, str] = {}
         if source_email_id:

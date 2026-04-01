@@ -87,6 +87,7 @@ def test_calendar_manager_sets_extended_property_on_insert(monkeypatch):
         ]
         == "2026-04-02T13:35:00-05:00"
     )
+    assert "attendees" not in events.insert_calls[0]["body"]
 
 
 def test_compute_smart_reminders_skips_day_before_for_casual_lunch(monkeypatch):
