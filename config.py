@@ -131,7 +131,7 @@ class Config:
         default_home_lng = _get_optional_float("MY_DEFAULT_LONGITUDE")
     prep_time: int = int(os.getenv("PREP_TIME_MINUTES", "15"))
     online_prep: int = int(os.getenv("ONLINE_PREP_MINUTES", "5"))
-    travel_mode: str = os.getenv("DEFAULT_TRAVEL_MODE", "driving")
+    travel_mode: str = _get_with_legacy("TRAVEL_TYPE", "DEFAULT_TRAVEL_MODE", "driving")
     auto_cleanup_hours: int = int(os.getenv("AUTO_CLEANUP_HOURS", "24"))
     gmail_labels: list[str] = _get_csv("GMAIL_LABELS", "INBOX")
     timezone: str = os.getenv("TIMEZONE", "America/Chicago")
@@ -201,7 +201,7 @@ class Config:
 
         if cls.travel_mode not in {"driving", "walking", "bicycling", "transit"}:
             errors.append(
-                "DEFAULT_TRAVEL_MODE must be one of: driving, walking, bicycling, transit."
+                "TRAVEL_TYPE must be one of: driving, walking, bicycling, transit."
             )
         if cls.max_emails_per_cycle < 1:
             errors.append("MAX_EMAILS_PER_CYCLE must be at least 1.")
