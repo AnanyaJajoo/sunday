@@ -159,7 +159,7 @@ def test_build_description_formats_travel_sentence_for_selected_travel_type(monk
         },
     )
 
-    assert description == "3 min drive from Campus Circle Urbana, leave by: 9:42 PM. organized by Aryan Gupta."
+    assert description == "3 min drive from Campus Circle Urbana, leave by: 9:42 PM. Organized by Aryan Gupta."
 
 
 def test_build_description_uses_walk_phrase_when_travel_type_is_walking(monkeypatch):
@@ -199,4 +199,4 @@ def test_build_description_uses_commute_phrase_for_transit(monkeypatch):
         },
     )
 
-    assert description == "11 min commute from Campus Circle Urbana, leave by: 8:34 PM. organized by Aryan Gupta."
+    assert description == "11 min commute from Campus Circle Urbana, leave by: 8:34 PM. Organized by Aryan Gupta."

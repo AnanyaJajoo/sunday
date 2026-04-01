@@ -243,7 +243,7 @@ class CalendarManager:
                 detail_sentences.append(f"{travel_sentence}.")
 
         if parsed_event.get("organizer"):
-            detail_sentences.append(f"organized by {parsed_event['organizer']}.")
+            detail_sentences.append(f"Organized by {parsed_event['organizer']}.")
 
         if detail_sentences:
             parts.append(" ".join(detail_sentences))
