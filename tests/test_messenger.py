@@ -24,7 +24,7 @@ def test_format_summary_for_event_is_informal_and_includes_email_link(monkeypatc
         source_email_link="https://mail.google.com/mail/u/0/#all/thread-123",
     )
 
-    assert "reminder: Meet Aryan for lunch at the Union at 3 PM!" in message
+    assert "reminder: meet aryan for lunch at the union at 3pm!" in message
     assert "location: 1401 W Green St, Urbana, IL 61801" in message
     assert "time: Apr 1 at 3:00 p.m." in message
     assert "leave by: 2:35 p.m." in message

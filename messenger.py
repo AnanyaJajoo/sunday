@@ -6,6 +6,7 @@ Sends formatted summaries to Telegram and/or iMessage (macOS only).
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -21,6 +22,16 @@ log = logging.getLogger(__name__)
 def _trim_sentence(text: str) -> str:
     """Remove trailing sentence punctuation without changing the content."""
     return text.strip().rstrip(".!?").strip()
+
+
+def _casualize_headline(text: str) -> str:
+    """Convert a reminder headline into a lower-case text-message style."""
+    casual = _trim_sentence(text).lower()
+    casual = casual.replace("a.m.", "am").replace("p.m.", "pm")
+    casual = re.sub(r"\b(\d{1,2})\s+(am|pm)\b", r"\1\2", casual)
+    casual = re.sub(r"\b(\d{1,2}):00\s*(am|pm)\b", r"\1\2", casual)
+    casual = re.sub(r"\b(\d{1,2}:\d{2})\s*(am|pm)\b", r"\1\2", casual)
+    return casual
 
 
 def _format_time_label(date_str: str | None, start_time: str | None) -> str | None:
@@ -143,7 +154,7 @@ def format_summary(
     lines: list[str] = []
 
     if parsed_email.get("has_event"):
-        lines.append(f"reminder: {summary}!")
+        lines.append(f"reminder: {_casualize_headline(summary)}!")
         if event.get("location"):
             lines.append(f"location: {event['location']}")
 
