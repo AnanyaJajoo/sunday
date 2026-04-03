@@ -23,12 +23,16 @@ from config import Config
 from day_planner import format_schedule, plan_day
 from errors import ConfigurationError
 from logging_utils import setup_logging
+from errors import ConfigurationError, TravelEstimationError
 from pipeline import run_pipeline, send_due_leave_alerts
 from state_store import get_state_file
+from travel_estimator import TravelEstimator
 
 setup_logging(Config.log_level)
 log = logging.getLogger(__name__)
 
+_TRAVEL_MODES = ("driving", "transit", "walking")
+_TRAVEL_CACHE_TTL_SECONDS = 3600  # recompute after 1 hour or significant location change
 _MEETING_LINK_RE = re.compile(
     r"https?://\S*(?:zoom\.us|meet\.google|teams\.microsoft)\S*",
     re.IGNORECASE,
@@ -203,14 +207,105 @@ async def plan_day_endpoint(body: PlanDayRequest):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+def _get_app_origin() -> tuple[str | None, float | None, float | None]:
+    """Read the most recent GPS fix posted by the Expo app."""
+    path = get_state_file("app_location.json")
+    if not path.exists():
+        return None, None, None
+    try:
+        data = json.loads(path.read_text())
+        return f"{data['latitude']},{data['longitude']}", data["latitude"], data["longitude"]
+    except (KeyError, OSError, json.JSONDecodeError):
+        return None, None, None
+
+
+def _travel_cache_key(event_id: str, lat: float, lng: float) -> str:
+    """Cache key quantized to ~1 km so minor GPS jitter doesn't bust the cache."""
+    return f"{event_id}:{round(lat, 2)}:{round(lng, 2)}"
+
+
+def _load_travel_cache() -> dict:
+    path = get_state_file("travel_cache.json")
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_travel_cache(cache: dict) -> None:
+    path = get_state_file("travel_cache.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cache))
+
+
 @app.get("/api/events", dependencies=[Depends(_require_auth)])
 async def get_events():
-    """Return upcoming calendar events (next 48h) for the app dashboard."""
+    """Return upcoming calendar events (next 48h) with multi-mode travel times."""
     try:
         calendar = CalendarManager()
         now = datetime.now(timezone.utc)
         items = calendar.list_events_in_window(now, now + timedelta(hours=48))
-        return {"events": [_map_calendar_event(item) for item in items]}
+
+        seen: set[str] = set()
+        unique = [i for i in items if i.get("id") not in seen and not seen.add(i.get("id", ""))]
+
+        origin, lat, lng = _get_app_origin()
+        cache = _load_travel_cache()
+        cache_dirty = False
+        travel = TravelEstimator() if (origin and Config.google_maps_key) else None
+
+        results = []
+        for item in unique:
+            mapped = _map_calendar_event(item)
+            location = item.get("location")
+
+            if travel and origin and lat is not None and lng is not None and location:
+                cache_key = _travel_cache_key(item.get("id", ""), lat, lng)
+                cached = cache.get(cache_key)
+
+                # Use cache if fresh
+                if cached:
+                    try:
+                        age = (datetime.now(timezone.utc) - datetime.fromisoformat(cached["computed_at"])).total_seconds()
+                        if age < _TRAVEL_CACHE_TTL_SECONDS:
+                            mapped["travel"] = cached["travel"]
+                            results.append(mapped)
+                            continue
+                    except (KeyError, ValueError):
+                        pass
+
+                # Compute all three modes
+                start_iso = mapped.get("start_iso", "")
+                multi: dict[str, dict | None] = {}
+                for travel_mode in _TRAVEL_MODES:
+                    try:
+                        info = await travel.estimate(
+                            destination=location,
+                            departure_time=start_iso or None,
+                            origin=origin,
+                            mode=travel_mode,
+                        )
+                        multi[travel_mode] = {
+                            "minutes": info["travel_minutes"],
+                            "text": info["travel_text"],
+                        }
+                    except (ConfigurationError, TravelEstimationError):
+                        multi[travel_mode] = None
+
+                mapped["travel"] = multi
+                cache[cache_key] = {"travel": multi, "computed_at": datetime.now(timezone.utc).isoformat()}
+                cache_dirty = True
+            else:
+                mapped["travel"] = None
+
+            results.append(mapped)
+
+        if cache_dirty:
+            _save_travel_cache(cache)
+
+        return {"events": results}
     except Exception as exc:
         log.exception("Events fetch error: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc

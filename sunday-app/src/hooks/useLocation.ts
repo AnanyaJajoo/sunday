@@ -4,28 +4,33 @@ import { postLocation } from "../api";
 
 export function useLocation() {
   useEffect(() => {
-    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
 
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted" || cancelled) return;
+      if (status !== "granted") return;
 
-      try {
-        const loc = await Location.getCurrentPositionAsync({
+      subscription = await Location.watchPositionAsync(
+        {
           accuracy: Location.Accuracy.Balanced,
-        });
-        if (!cancelled) {
-          await postLocation(
-            loc.coords.latitude,
-            loc.coords.longitude,
-            loc.coords.accuracy
-          );
+          distanceInterval: 50, // only update after moving 50 metres
+        },
+        async (loc) => {
+          try {
+            await postLocation(
+              loc.coords.latitude,
+              loc.coords.longitude,
+              loc.coords.accuracy
+            );
+          } catch {
+            // Non-fatal — never block UI on location failure
+          }
         }
-      } catch (e) {
-        // Location is an enhancement — never block the UI on failure
-      }
+      );
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      subscription?.remove();
+    };
   }, []);
 }

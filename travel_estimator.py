@@ -725,6 +725,7 @@ class TravelEstimator:
         origin: str | None = None,
         origin_label: str | None = None,
         origin_source: str | None = None,
+        mode: str | None = None,
     ) -> dict:
         """
         Estimate travel time from origin to destination.
@@ -758,7 +759,7 @@ class TravelEstimator:
         params: dict = {
             "origins": _origin,
             "destinations": destination,
-            "mode": Config.travel_mode,
+            "mode": mode or Config.travel_mode,
             "key": Config.google_maps_key,
         }
 

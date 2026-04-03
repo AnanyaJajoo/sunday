@@ -14,11 +14,12 @@ It is intentionally strict in production:
 3. [Setup From Scratch](#setup-from-scratch)
 4. [Configuration Guide](#configuration-guide)
 5. [Running Sunday](#running-sunday)
-6. [How Travel and Calendar Writing Work](#how-travel-and-calendar-writing-work)
-7. [Optional API and Deployment](#optional-api-and-deployment)
-8. [Troubleshooting](#troubleshooting)
-9. [Development](#development)
-10. [To-Do](#to-do)
+6. [Expo App (Local Development)](#expo-app-local-development)
+7. [How Travel and Calendar Writing Work](#how-travel-and-calendar-writing-work)
+8. [Optional API and Deployment](#optional-api-and-deployment)
+9. [Troubleshooting](#troubleshooting)
+10. [Development](#development)
+11. [To-Do](#to-do)
 
 ## How It Works
 
@@ -463,6 +464,106 @@ Reset Google OAuth locally:
 rm -f token.json
 uv run python main.py
 ```
+
+## Expo App (Local Development)
+
+Sunday includes a React Native app (`sunday-app/`) built with Expo Go. It shows today's upcoming events, live travel times by car, bus, and walking, and leave countdowns. It adapts to dark mode automatically.
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+
+- [Expo Go](https://expo.dev/go) installed on your iPhone (from the App Store)
+- Your Mac and iPhone on the same Wi-Fi network
+- The Sunday backend running on your Mac
+
+### 1. Install app dependencies
+
+```bash
+cd sunday-app
+npm install
+```
+
+### 2. Find your Mac's local IP address
+
+```bash
+ipconfig getifaddr en0
+```
+
+This returns something like `192.168.0.231`. You need this so the app can reach the backend running on your Mac.
+
+### 3. Create the app environment file
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```env
+EXPO_PUBLIC_API_BASE_URL=http://192.168.0.231:8000
+EXPO_PUBLIC_API_TOKEN=your_cron_secret_here
+```
+
+- Replace the IP with what you got in step 2.
+- `EXPO_PUBLIC_API_TOKEN` must match the `CRON_SECRET` value in your `config.env`. Leave both blank if you have not set a secret.
+
+### 4. Start the Sunday backend
+
+In a terminal at the repo root, run uvicorn bound to all interfaces so your phone can reach it:
+
+```bash
+uv run uvicorn server:app --host 0.0.0.0 --port 8000
+```
+
+Do not use `--reload` together with `--host 0.0.0.0` in production; it is fine for local dev.
+
+### 5. Start the Expo dev server
+
+In a separate terminal inside `sunday-app/`:
+
+```bash
+npx expo start
+```
+
+A QR code will appear in the terminal.
+
+### 6. Open the app on your iPhone
+
+1. Open the camera app and point it at the QR code.
+2. Tap the Expo Go banner that appears.
+3. The app will bundle and launch.
+
+The dashboard shows:
+- Today's date and the last-updated time
+- Each upcoming event with title, time, and location
+- Travel pills showing drive / transit / walk times
+- A leave-by countdown that turns urgent (red) when under 30 minutes away
+
+### Live location
+
+The app sends your phone's GPS coordinates to the backend every time you move more than 50 metres. The backend uses this as the travel origin instead of your configured home or work address.
+
+### Push notifications
+
+Push notifications are not supported in Expo Go. They require a standalone build. The app silently skips notification setup when running inside Expo Go.
+
+### Troubleshooting
+
+**Network request failed**
+
+- Make sure your Mac IP in `.env` is correct and matches `ipconfig getifaddr en0`.
+- Make sure uvicorn was started with `--host 0.0.0.0`, not the default `127.0.0.1`.
+- Both devices must be on the same Wi-Fi network.
+
+**Events not showing**
+
+- Check that the Sunday worker (`uv run python main.py`) is running and has processed at least one email.
+- The `/api/events` endpoint only returns events from today onward.
+
+**QR code not scanning**
+
+- Try pressing `w` in the Expo terminal to open a browser preview, which confirms the server is up.
+- Restart Expo with `npx expo start --clear`.
 
 ## How Travel and Calendar Writing Work
 

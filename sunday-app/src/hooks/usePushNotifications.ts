@@ -13,14 +13,13 @@ Notifications.setNotificationHandler({
 export function usePushNotifications() {
   useEffect(() => {
     (async () => {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== "granted") return;
-
       try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== "granted") return;
         const { data: token } = await Notifications.getExpoPushTokenAsync();
         await registerPushToken(token);
-      } catch (e) {
-        // Non-fatal — app works without push
+      } catch {
+        // Non-fatal — push not supported in Expo Go (SDK 53+), works in dev builds
       }
     })();
   }, []);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text } from "react-native";
+import { useColors } from "../theme";
 
 interface Props {
   targetIso: string;
@@ -17,6 +18,7 @@ function formatCountdown(ms: number): string {
 }
 
 export function CountdownTimer({ targetIso }: Props) {
+  const colors = useColors();
   const target = new Date(targetIso).getTime();
   const [remaining, setRemaining] = useState(target - Date.now());
 
@@ -26,15 +28,15 @@ export function CountdownTimer({ targetIso }: Props) {
   }, [target]);
 
   const isUrgent = remaining > 0 && remaining < 30 * 60 * 1000;
+  const color = isUrgent ? colors.urgent : colors.muted;
 
   return (
-    <Text style={[styles.text, isUrgent && styles.urgent]}>
+    <Text style={[styles.text, { color, fontWeight: isUrgent ? "700" : "500" }]}>
       {remaining <= 0 ? "leave now" : `leave in ${formatCountdown(remaining)}`}
     </Text>
   );
 }
 
 const styles = StyleSheet.create({
-  text: { fontSize: 13, color: "#666", fontWeight: "500" },
-  urgent: { color: "#e74c3c", fontWeight: "700" },
+  text: { fontSize: 13 },
 });
