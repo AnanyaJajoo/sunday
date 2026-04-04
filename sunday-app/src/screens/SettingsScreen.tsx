@@ -44,6 +44,8 @@ const PANEL_ALT = "#252525";
 const BORDER = "#323232";
 const MUTED = "#8b8b8b";
 const ACCENT = "#ffffff";
+const TOGGLE_OFF = "#1a1a1a";
+const TOGGLE_ON = "#5f5f5f";
 const AUTOSAVE_DELAY_MS = 500;
 const SETTINGS_RETRY_DELAY_MS = 2000;
 const KEYBOARD_ROW_CLEARANCE = 72;
@@ -855,8 +857,8 @@ export function SettingsScreen() {
                             onValueChange={(value) => {
                               void handlePhoneLocationToggle(value);
                             }}
-                            ios_backgroundColor="#2a2a2a"
-                            trackColor={{ false: "#2a2a2a", true: "#5f5f5f" }}
+                            ios_backgroundColor={TOGGLE_OFF}
+                            trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
                             thumbColor={isPhoneLocationEnabled ? "#ffffff" : "#d6d6d6"}
                           />
                         </View>
@@ -897,8 +899,8 @@ export function SettingsScreen() {
                           <Switch
                             value={boolValue}
                             onValueChange={(value) => handleToggleChange(field.key, value)}
-                            ios_backgroundColor="#2a2a2a"
-                            trackColor={{ false: "#2a2a2a", true: "#5f5f5f" }}
+                            ios_backgroundColor={TOGGLE_OFF}
+                            trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
                             thumbColor={boolValue ? "#ffffff" : "#d6d6d6"}
                           />
                         ) : field.key === "WORK_DAYS" ? (
