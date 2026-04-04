@@ -17,10 +17,12 @@ export type ReverseGeocodeResponse = {
   longitude: number;
 };
 
-function buildHeaders() {
+function buildHeaders(includeJsonContentType = true) {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
   };
+  if (includeJsonContentType) {
+    headers["Content-Type"] = "application/json";
+  }
   if (API_TOKEN) {
     headers.authorization = `Bearer ${API_TOKEN}`;
   }
@@ -44,7 +46,7 @@ async function parseResponse(response: Response): Promise<AppSettingsResponse> {
 export async function fetchAppSettings(): Promise<AppSettingsResponse> {
   const response = await fetchApi("/api/settings", {
     method: "GET",
-    headers: buildHeaders(),
+    headers: buildHeaders(false),
   }, {
     timeoutMs: SETTINGS_REQUEST_TIMEOUT_MS,
   });

@@ -83,6 +83,7 @@ export async function fetchApi(
   init: RequestInit,
   options: FetchApiOptions = {},
 ) {
+  const method = (init.method ?? "GET").toUpperCase();
   const attemptedBaseUrls: string[] = [];
   let lastError: unknown = null;
   const candidates = buildApiBaseUrlCandidates();
@@ -93,14 +94,23 @@ export async function fetchApi(
 
   for (const baseUrl of candidates) {
     attemptedBaseUrls.push(baseUrl);
+    const startedAt = Date.now();
 
     try {
+      console.log(`[sunday] ${method} ${path} via ${baseUrl}`);
       const response = await fetchWithOptionalTimeout(`${baseUrl}${path}`, init, options.timeoutMs);
       resolvedApiBaseUrl = baseUrl;
       announceResolvedApiBaseUrl(baseUrl);
+      console.log(
+        `[sunday] ${method} ${path} succeeded via ${baseUrl} in ${Date.now() - startedAt}ms`,
+      );
       return response;
     } catch (error) {
       lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[sunday] ${method} ${path} failed via ${baseUrl} in ${Date.now() - startedAt}ms: ${message}`,
+      );
       if (!isRetryableNetworkError(error)) {
         throw error;
       }
