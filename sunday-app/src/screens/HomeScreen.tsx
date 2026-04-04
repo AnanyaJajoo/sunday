@@ -9,7 +9,7 @@ const ORB_VIDEO_URL =
 
 export function HomeScreen() {
   const orbScale = useRef(new Animated.Value(1)).current;
-  const orbLift = useRef(new Animated.Value(0)).current;
+  const isAnimating = useRef(false);
 
   const player = useVideoPlayer(ORB_VIDEO_URL, (videoPlayer) => {
     videoPlayer.loop = true;
@@ -18,52 +18,38 @@ export function HomeScreen() {
   });
 
   const animateOrb = useCallback(() => {
-    orbScale.stopAnimation();
-    orbLift.stopAnimation();
+    if (isAnimating.current) {
+      return;
+    }
 
-    Animated.parallel([
-      Animated.sequence([
-        Animated.spring(orbScale, {
-          toValue: 1.16,
-          friction: 4.5,
-          tension: 165,
-          useNativeDriver: true,
-        }),
-        Animated.spring(orbScale, {
-          toValue: 0.98,
-          friction: 5.5,
-          tension: 150,
-          useNativeDriver: true,
-        }),
-        Animated.spring(orbScale, {
-          toValue: 1,
-          friction: 6,
-          tension: 115,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.sequence([
-        Animated.spring(orbLift, {
-          toValue: -8,
-          friction: 5,
-          tension: 160,
-          useNativeDriver: true,
-        }),
-        Animated.spring(orbLift, {
-          toValue: 2,
-          friction: 6,
-          tension: 120,
-          useNativeDriver: true,
-        }),
-        Animated.spring(orbLift, {
-          toValue: 0,
-          friction: 6,
-          tension: 110,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [orbLift, orbScale]);
+    isAnimating.current = true;
+    orbScale.stopAnimation();
+    orbScale.setValue(1);
+
+    Animated.sequence([
+      Animated.spring(orbScale, {
+        toValue: 1.16,
+        friction: 4.5,
+        tension: 165,
+        useNativeDriver: true,
+      }),
+      Animated.spring(orbScale, {
+        toValue: 0.98,
+        friction: 5.5,
+        tension: 150,
+        useNativeDriver: true,
+      }),
+      Animated.spring(orbScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 115,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      isAnimating.current = false;
+      orbScale.setValue(1);
+    });
+  }, [orbScale]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -74,7 +60,7 @@ export function HomeScreen() {
             style={[
               styles.orbFrame,
               {
-                transform: [{ translateY: orbLift }, { scale: orbScale }],
+                transform: [{ scale: orbScale }],
               },
             ]}
           >
