@@ -1157,7 +1157,7 @@ const styles = StyleSheet.create({
   },
   fieldRow: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 9,
     backgroundColor: PANEL,
     gap: 8,
   },
@@ -1187,7 +1187,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   input: {
-    minHeight: 34,
+    minHeight: 36,
     borderRadius: 999,
     paddingHorizontal: 12,
     color: "#ffffff",
@@ -1196,10 +1196,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   timePicker: {
-    width: Platform.OS === "ios" ? 112 : 124,
+    width: Platform.OS === "ios" ? 116 : 126,
     alignSelf: "center",
-    marginRight: Platform.OS === "ios" ? -10 : 0,
-    transform: Platform.OS === "ios" ? [{ scale: 0.9 }] : undefined,
+    marginRight: Platform.OS === "ios" ? -9 : 0,
+    transform: Platform.OS === "ios" ? [{ scale: 0.93 }] : undefined,
   },
   locationRow: {
     flexDirection: "row",
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
   },
   locationValueButton: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 36,
     borderRadius: 999,
     backgroundColor: PANEL_ALT,
     marginLeft: 6,
@@ -1250,7 +1250,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Platform.OS === "ios" ? -8 : 0,
   },
   selectTrigger: {
-    minHeight: 34,
+    minHeight: 36,
     maxWidth: 220,
     borderRadius: 999,
     paddingLeft: 11,
@@ -1271,7 +1271,7 @@ const styles = StyleSheet.create({
   },
   numericInput: {
     width: 66,
-    minHeight: 34,
+    minHeight: 36,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 0,
@@ -1297,9 +1297,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   workdayButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: PANEL_ALT,
     alignItems: "center",
     justifyContent: "center",
