@@ -34,38 +34,10 @@ type AlertsScreenProps = {
 
 function TrashIcon({ size = 20, color = "#ffffff" }: { size?: number; color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 -960 960 960" fill="none">
       <Path
-        d="M5 7H19"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M10 11V17"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M14 11V17"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M8 7L9 5H15L16 7"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Path
-        d="M18 7L17.2 18.2C17.14 19.04 16.44 19.69 15.59 19.69H8.41C7.56 19.69 6.86 19.04 6.8 18.2L6 7"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"
+        fill={color}
       />
     </Svg>
   );
