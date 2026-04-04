@@ -18,8 +18,8 @@ const CONTAINER = "#252525";
 const ACTIVE = "#ffffff";
 const INACTIVE_ICON = "#f4f4f4";
 const ACTIVE_ICON = BACKGROUND;
-const PADDING = 6;
-const INDICATOR_GAP = 3;
+const PADDING = 4;
+const INDICATOR_GAP = 2;
 
 const OPTIONS = [
   { key: "driving", Icon: DriveTravelIcon },
@@ -125,7 +125,7 @@ export function TravelTypeSelector({ value, onChange }: TravelTypeSelectorProps)
 const styles = StyleSheet.create({
   container: {
     position: "relative",
-    minHeight: 48,
+    minHeight: 40,
     borderRadius: 999,
     backgroundColor: CONTAINER,
     paddingHorizontal: PADDING,
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    height: 36,
+    height: 32,
   },
   optionSlot: {
     width: "auto",
