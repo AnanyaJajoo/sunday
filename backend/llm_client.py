@@ -16,8 +16,8 @@ from email.utils import parsedate_to_datetime
 
 import httpx
 
-from config import Config
-from errors import ConfigurationError, SmartCalendarError
+from .config import Config
+from .errors import ConfigurationError, SmartCalendarError
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class LLMClient:
     Unified async LLM client.
 
     Usage:
-        from llm_client import get_llm
+        from .llm_client import get_llm
         response = await get_llm().complete([
             {"role": "system", "content": "You are helpful."},
             {"role": "user",   "content": "Hello!"},

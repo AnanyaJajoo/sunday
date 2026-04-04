@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from errors import ConfigurationError
-from travel_estimator import TravelEstimator
+from backend.errors import ConfigurationError
+from backend.travel_estimator import TravelEstimator
 
 
 class _FakeResponse:
@@ -65,7 +65,7 @@ class _QueryAwareAsyncClient:
 
 @pytest.mark.anyio
 async def test_travel_estimator_requires_maps_key(monkeypatch):
-    monkeypatch.setattr("travel_estimator.Config.google_maps_key", "")
+    monkeypatch.setattr("backend.travel_estimator.Config.google_maps_key", "")
 
     estimator = TravelEstimator()
 
@@ -90,14 +90,14 @@ async def test_travel_estimator_uses_maps_response(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr("travel_estimator.Config.google_maps_key", "test-key")
-    monkeypatch.setattr("travel_estimator.Config.prep_time", 15)
-    monkeypatch.setattr("travel_estimator.Config.default_home_location", "Home")
-    monkeypatch.setattr("travel_estimator.Config.default_home_lat", None)
-    monkeypatch.setattr("travel_estimator.Config.default_home_lng", None)
-    monkeypatch.setattr("travel_estimator.Config.default_work_location", "")
+    monkeypatch.setattr("backend.travel_estimator.Config.google_maps_key", "test-key")
+    monkeypatch.setattr("backend.travel_estimator.Config.prep_time", 15)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_location", "Home")
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lat", None)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lng", None)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_work_location", "")
     monkeypatch.setattr(
-        "travel_estimator.httpx.AsyncClient",
+        "backend.travel_estimator.httpx.AsyncClient",
         lambda timeout: _FakeAsyncClient(payload),
     )
 
@@ -124,11 +124,11 @@ async def test_travel_estimator_resolves_exact_destination_address(monkeypatch):
         ],
     }
 
-    monkeypatch.setattr("travel_estimator.Config.google_maps_key", "test-key")
-    monkeypatch.setattr("travel_estimator.Config.default_home_lat", 40.1165658)
-    monkeypatch.setattr("travel_estimator.Config.default_home_lng", -88.2219593)
+    monkeypatch.setattr("backend.travel_estimator.Config.google_maps_key", "test-key")
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lat", 40.1165658)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lng", -88.2219593)
     monkeypatch.setattr(
-        "travel_estimator.httpx.AsyncClient",
+        "backend.travel_estimator.httpx.AsyncClient",
         lambda timeout: _FakeMultiAsyncClient(
             {
                 TravelEstimator.PLACES_TEXTSEARCH_URL: {"status": "ZERO_RESULTS", "results": []},
@@ -168,13 +168,13 @@ async def test_travel_estimator_retries_ambiguous_restaurant_names_with_context(
         return {"status": "ZERO_RESULTS", "results": []}
 
     client = _QueryAwareAsyncClient(resolver)
-    monkeypatch.setattr("travel_estimator.Config.google_maps_key", "test-key")
-    monkeypatch.setattr("travel_estimator.Config.default_home_lat", 40.1165658)
-    monkeypatch.setattr("travel_estimator.Config.default_home_lng", -88.2219593)
-    monkeypatch.setattr("travel_estimator.Config.default_work_lat", 40.1150399)
-    monkeypatch.setattr("travel_estimator.Config.default_work_lng", -88.2281974)
+    monkeypatch.setattr("backend.travel_estimator.Config.google_maps_key", "test-key")
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lat", 40.1165658)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lng", -88.2219593)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_work_lat", 40.1150399)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_work_lng", -88.2281974)
     monkeypatch.setattr(
-        "travel_estimator.httpx.AsyncClient",
+        "backend.travel_estimator.httpx.AsyncClient",
         lambda timeout: client,
     )
 
@@ -227,13 +227,13 @@ async def test_travel_estimator_ranks_multiple_local_place_candidates(monkeypatc
         return {"status": "ZERO_RESULTS", "results": []}
 
     client = _QueryAwareAsyncClient(resolver)
-    monkeypatch.setattr("travel_estimator.Config.google_maps_key", "test-key")
-    monkeypatch.setattr("travel_estimator.Config.default_home_lat", 40.1165658)
-    monkeypatch.setattr("travel_estimator.Config.default_home_lng", -88.2219593)
-    monkeypatch.setattr("travel_estimator.Config.default_work_lat", 40.1150399)
-    monkeypatch.setattr("travel_estimator.Config.default_work_lng", -88.2281974)
+    monkeypatch.setattr("backend.travel_estimator.Config.google_maps_key", "test-key")
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lat", 40.1165658)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lng", -88.2219593)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_work_lat", 40.1150399)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_work_lng", -88.2281974)
     monkeypatch.setattr(
-        "travel_estimator.httpx.AsyncClient",
+        "backend.travel_estimator.httpx.AsyncClient",
         lambda timeout: client,
     )
 
@@ -267,11 +267,11 @@ async def test_travel_estimator_rejects_far_unrelated_geocode_for_ambiguous_chai
         }
 
     client = _QueryAwareAsyncClient(resolver)
-    monkeypatch.setattr("travel_estimator.Config.google_maps_key", "test-key")
-    monkeypatch.setattr("travel_estimator.Config.default_home_lat", 40.1165658)
-    monkeypatch.setattr("travel_estimator.Config.default_home_lng", -88.2219593)
+    monkeypatch.setattr("backend.travel_estimator.Config.google_maps_key", "test-key")
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lat", 40.1165658)
+    monkeypatch.setattr("backend.travel_estimator.Config.default_home_lng", -88.2219593)
     monkeypatch.setattr(
-        "travel_estimator.httpx.AsyncClient",
+        "backend.travel_estimator.httpx.AsyncClient",
         lambda timeout: client,
     )
 

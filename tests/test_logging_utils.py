@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from logging_utils import PrettyLogFormatter
+from backend.logging_utils import PrettyLogFormatter
 
 
 def test_pretty_log_formatter_compacts_logger_names_without_color():

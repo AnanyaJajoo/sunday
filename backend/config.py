@@ -11,8 +11,19 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _resolve_project_path(value: str) -> str:
+    """Resolve a possibly-relative config path against the project root."""
+    path = Path(value)
+    if path.is_absolute():
+        return str(path)
+    return str(PROJECT_ROOT / path)
+
+
 # Load the ONE config file from the project root
-load_dotenv(Path(__file__).parent / "config.env")
+load_dotenv(PROJECT_ROOT / "config.env")
 
 
 def _get_optional_float(name: str) -> float | None:
@@ -104,8 +115,12 @@ class Config:
     }
 
     # ── Google ──
-    google_creds_file: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
-    google_token_file: str = os.getenv("GOOGLE_TOKEN_FILE", "token.json")
+    google_creds_file: str = _resolve_project_path(
+        os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+    )
+    google_token_file: str = _resolve_project_path(
+        os.getenv("GOOGLE_TOKEN_FILE", "token.json")
+    )
     google_maps_key: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
     # ── Messaging ──
@@ -136,7 +151,9 @@ class Config:
     auto_cleanup_hours: int = int(os.getenv("AUTO_CLEANUP_HOURS", "24"))
     gmail_labels: list[str] = _get_csv("GMAIL_LABELS", "INBOX")
     timezone: str = os.getenv("TIMEZONE", "America/Chicago")
-    state_dir: str = os.getenv("STATE_DIR", str(Path(__file__).parent / ".state"))
+    state_dir: str = _resolve_project_path(
+        os.getenv("STATE_DIR", str(PROJECT_ROOT / ".state"))
+    )
 
     # ── Expo app ──
     expo_push_enabled: bool = os.getenv("EXPO_PUSH_ENABLED", "false").lower() == "true"

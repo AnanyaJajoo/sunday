@@ -1,4 +1,5 @@
 import React from "react";
+import { useFonts } from "expo-font";
 import {
   Animated,
   Dimensions,
@@ -19,7 +20,7 @@ const NAV_HEIGHT = 60;
 const NAV_SIDE_INSET = 24;
 const NAV_HORIZONTAL_PADDING = 10;
 const INDICATOR_MARGIN = 6;
-const INDICATOR_HORIZONTAL_INSET = 12;
+const INDICATOR_HORIZONTAL_INSET = 4;
 const ACTIVE_COLOR = "#ffffff";
 const SELECTED_ICON_COLOR = BACKGROUND;
 const INACTIVE_COLOR = "#f4f4f4";
@@ -38,12 +39,29 @@ const NAV_CONTENT_WIDTH = NAV_WIDTH - NAV_HORIZONTAL_PADDING * 2;
 const NAV_ITEM_WIDTH = (NAV_WIDTH - NAV_HORIZONTAL_PADDING * 2) / TABS.length;
 const INDICATOR_WIDTH = NAV_ITEM_WIDTH - INDICATOR_HORIZONTAL_INSET * 2;
 const INDICATOR_OVERSHOOT = 10;
+const INDICATOR_EDGE_COMPRESS = 12;
+const INDICATOR_EDGE_EXTENSION = 8;
 const RECORD_TAB_INDEX = 1;
+
+function getIndicatorTarget(index: number) {
+  if (index === 0 || index === TABS.length - 1) {
+    return index * NAV_ITEM_WIDTH - INDICATOR_EDGE_EXTENSION;
+  }
+  return index * NAV_ITEM_WIDTH;
+}
+
+function getIndicatorWidth(index: number) {
+  if (index === 0 || index === TABS.length - 1) {
+    return INDICATOR_WIDTH + INDICATOR_EDGE_EXTENSION * 2;
+  }
+  return INDICATOR_WIDTH;
+}
 
 function Main() {
   const insets = useSafeAreaInsets();
   const scrollRef = React.useRef<ScrollView>(null);
-  const indicatorTranslateX = React.useRef(new Animated.Value(INITIAL_INDEX * NAV_ITEM_WIDTH)).current;
+  const indicatorTranslateX = React.useRef(new Animated.Value(getIndicatorTarget(INITIAL_INDEX))).current;
+  const indicatorWidth = React.useRef(new Animated.Value(getIndicatorWidth(INITIAL_INDEX))).current;
   const navTranslateY = React.useRef(new Animated.Value(0)).current;
   const [activeIndex, setActiveIndex] = React.useState(INITIAL_INDEX);
   const [navVisible, setNavVisible] = React.useState(true);
@@ -55,36 +73,90 @@ function Main() {
 
   const animateIndicatorToIndex = React.useCallback(
     (index: number) => {
-      const target = index * NAV_ITEM_WIDTH;
+      const target = getIndicatorTarget(index);
+      const targetWidth = getIndicatorWidth(index);
       const maxOffset = (TABS.length - 1) * NAV_ITEM_WIDTH;
+      const isEdge = index === 0 || index === TABS.length - 1;
 
       indicatorTranslateX.stopAnimation((currentValue: number) => {
         if (Math.abs(target - currentValue) < 0.5) {
           return;
         }
 
-        const direction = target >= currentValue ? 1 : -1;
-        const overshoot = Math.min(
-          maxOffset,
-          Math.max(0, target + direction * INDICATOR_OVERSHOOT),
-        );
+        indicatorWidth.stopAnimation(() => {
+          if (isEdge) {
+            const compressedWidth = targetWidth - INDICATOR_EDGE_COMPRESS;
+            const compressedOffset = index === 0 ? target : target + INDICATOR_EDGE_COMPRESS;
 
-        Animated.sequence([
-          Animated.timing(indicatorTranslateX, {
-            toValue: overshoot,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.spring(indicatorTranslateX, {
-            toValue: target,
-            speed: 20,
-            bounciness: 10,
-            useNativeDriver: true,
-          }),
-        ]).start();
+            Animated.sequence([
+              Animated.parallel([
+                Animated.timing(indicatorTranslateX, {
+                  toValue: compressedOffset,
+                  duration: 160,
+                  useNativeDriver: false,
+                }),
+                Animated.timing(indicatorWidth, {
+                  toValue: compressedWidth,
+                  duration: 160,
+                  useNativeDriver: false,
+                }),
+              ]),
+              Animated.parallel([
+                Animated.spring(indicatorTranslateX, {
+                  toValue: target,
+                  speed: 20,
+                  bounciness: 10,
+                  useNativeDriver: false,
+                }),
+                Animated.spring(indicatorWidth, {
+                  toValue: targetWidth,
+                  speed: 20,
+                  bounciness: 8,
+                  useNativeDriver: false,
+                }),
+              ]),
+            ]).start();
+            return;
+          }
+
+          const direction = target >= currentValue ? 1 : -1;
+          const overshoot = Math.min(
+            maxOffset,
+            Math.max(0, target + direction * INDICATOR_OVERSHOOT),
+          );
+
+          Animated.sequence([
+            Animated.parallel([
+              Animated.timing(indicatorTranslateX, {
+                toValue: overshoot,
+                duration: 150,
+                useNativeDriver: false,
+              }),
+              Animated.timing(indicatorWidth, {
+                toValue: targetWidth,
+                duration: 150,
+                useNativeDriver: false,
+              }),
+            ]),
+            Animated.parallel([
+              Animated.spring(indicatorTranslateX, {
+                toValue: target,
+                speed: 20,
+                bounciness: 10,
+                useNativeDriver: false,
+              }),
+              Animated.spring(indicatorWidth, {
+                toValue: targetWidth,
+                speed: 20,
+                bounciness: 8,
+                useNativeDriver: false,
+              }),
+            ]),
+          ]).start();
+        });
       });
     },
-    [indicatorTranslateX],
+    [indicatorTranslateX, indicatorWidth],
   );
 
   const animateNavVisibility = React.useCallback(
@@ -102,13 +174,13 @@ function Main() {
           Animated.timing(navTranslateY, {
             toValue: overshoot,
             duration: 140,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.spring(navTranslateY, {
             toValue: target,
             speed: 19,
             bounciness: 9,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]).start();
       });
@@ -156,12 +228,6 @@ function Main() {
       animateNavVisibility(true);
     }
   }, [activeIndex, animateNavVisibility, navVisible]);
-
-  React.useEffect(() => {
-    if (!navVisible) {
-      navTranslateY.setValue(navHiddenOffset);
-    }
-  }, [navHiddenOffset, navTranslateY, navVisible]);
 
   const navBarBottom = Math.max(insets.bottom, 14);
 
@@ -214,6 +280,7 @@ function Main() {
           style={[
             styles.activeIndicator,
             {
+              width: indicatorWidth,
               transform: [{ translateX: indicatorTranslateX }],
             },
           ]}
@@ -239,6 +306,17 @@ function Main() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    "GoogleSans-Regular": require("./assets/fonts/GoogleSans-Regular.ttf"),
+    "GoogleSans-Medium": require("./assets/fonts/GoogleSans-Medium.ttf"),
+    "GoogleSans-SemiBold": require("./assets/fonts/GoogleSans-SemiBold.ttf"),
+    "GoogleSans-Bold": require("./assets/fonts/GoogleSans-Bold.ttf"),
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <SafeAreaProvider>
       <Main />

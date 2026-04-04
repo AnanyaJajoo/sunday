@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 
 import httpx
 
-from config import Config
-from errors import ConfigurationError, TravelEstimationError
+from .config import Config
+from .errors import ConfigurationError, TravelEstimationError
 
 log = logging.getLogger(__name__)
 

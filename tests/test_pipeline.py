@@ -5,9 +5,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from calendar_manager import CalendarManager
-from errors import MessagingDeliveryError, TravelEstimationError
-from pipeline import process_single_email, send_due_leave_alerts
+from backend.calendar_manager import CalendarManager
+from backend.errors import MessagingDeliveryError, TravelEstimationError
+from backend.pipeline import process_single_email, send_due_leave_alerts
 
 
 class _FakeGmail:
@@ -134,8 +134,8 @@ async def test_process_single_email_marks_processed_after_success(monkeypatch):
         send_kwargs.update(kwargs)
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     gmail = _FakeGmail()
     result = await process_single_email(
@@ -167,8 +167,8 @@ async def test_process_single_email_leaves_message_unprocessed_on_summary_failur
     async def fake_send_summary(**kwargs):
         raise MessagingDeliveryError("boom")
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     gmail = _FakeGmail()
 
@@ -208,8 +208,8 @@ async def test_process_single_email_enriches_missing_title_and_end_time(monkeypa
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -260,8 +260,8 @@ async def test_process_single_email_adds_other_party_names_to_generic_event_titl
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -310,8 +310,8 @@ async def test_process_single_email_still_creates_event_when_exact_address_looku
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -353,8 +353,8 @@ async def test_process_single_email_still_creates_event_when_travel_estimate_fai
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -395,17 +395,17 @@ async def test_process_single_email_uses_work_origin_during_work_hours(monkeypat
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline.Config.default_home_location", "Home")
-    monkeypatch.setattr("pipeline.Config.default_home_lat", None)
-    monkeypatch.setattr("pipeline.Config.default_home_lng", None)
-    monkeypatch.setattr("pipeline.Config.default_work_location", "Office")
-    monkeypatch.setattr("pipeline.Config.default_work_lat", None)
-    monkeypatch.setattr("pipeline.Config.default_work_lng", None)
-    monkeypatch.setattr("pipeline.Config.work_days", ["wed"])
-    monkeypatch.setattr("pipeline.Config.workday_start_time", "09:00")
-    monkeypatch.setattr("pipeline.Config.workday_end_time", "17:00")
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.Config.default_home_location", "Home")
+    monkeypatch.setattr("backend.pipeline.Config.default_home_lat", None)
+    monkeypatch.setattr("backend.pipeline.Config.default_home_lng", None)
+    monkeypatch.setattr("backend.pipeline.Config.default_work_location", "Office")
+    monkeypatch.setattr("backend.pipeline.Config.default_work_lat", None)
+    monkeypatch.setattr("backend.pipeline.Config.default_work_lng", None)
+    monkeypatch.setattr("backend.pipeline.Config.work_days", ["wed"])
+    monkeypatch.setattr("backend.pipeline.Config.workday_start_time", "09:00")
+    monkeypatch.setattr("backend.pipeline.Config.workday_end_time", "17:00")
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -451,17 +451,17 @@ async def test_process_single_email_uses_home_origin_outside_work_hours(monkeypa
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline.Config.default_home_location", "Home")
-    monkeypatch.setattr("pipeline.Config.default_home_lat", None)
-    monkeypatch.setattr("pipeline.Config.default_home_lng", None)
-    monkeypatch.setattr("pipeline.Config.default_work_location", "Office")
-    monkeypatch.setattr("pipeline.Config.default_work_lat", None)
-    monkeypatch.setattr("pipeline.Config.default_work_lng", None)
-    monkeypatch.setattr("pipeline.Config.work_days", ["wed"])
-    monkeypatch.setattr("pipeline.Config.workday_start_time", "09:00")
-    monkeypatch.setattr("pipeline.Config.workday_end_time", "17:00")
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.Config.default_home_location", "Home")
+    monkeypatch.setattr("backend.pipeline.Config.default_home_lat", None)
+    monkeypatch.setattr("backend.pipeline.Config.default_home_lng", None)
+    monkeypatch.setattr("backend.pipeline.Config.default_work_location", "Office")
+    monkeypatch.setattr("backend.pipeline.Config.default_work_lat", None)
+    monkeypatch.setattr("backend.pipeline.Config.default_work_lng", None)
+    monkeypatch.setattr("backend.pipeline.Config.work_days", ["wed"])
+    monkeypatch.setattr("backend.pipeline.Config.workday_start_time", "09:00")
+    monkeypatch.setattr("backend.pipeline.Config.workday_end_time", "17:00")
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -504,10 +504,10 @@ async def test_process_single_email_uses_latest_prior_calendar_location_as_origi
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
-    monkeypatch.setattr("pipeline.Config.default_home_location", "Home")
-    monkeypatch.setattr("pipeline.Config.default_work_location", "Office")
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.Config.default_home_location", "Home")
+    monkeypatch.setattr("backend.pipeline.Config.default_work_location", "Office")
 
     calendar = _FakeCalendar(
         day_events=[
@@ -570,8 +570,8 @@ async def test_process_single_email_replaces_typoed_venue_name_in_title(monkeypa
         del kwargs
         return None
 
-    monkeypatch.setattr("pipeline.parse_email", fake_parse_email)
-    monkeypatch.setattr("pipeline.send_summary", fake_send_summary)
+    monkeypatch.setattr("backend.pipeline.parse_email", fake_parse_email)
+    monkeypatch.setattr("backend.pipeline.send_summary", fake_send_summary)
 
     calendar = _FakeCalendar()
     gmail = _FakeGmail()
@@ -598,8 +598,8 @@ async def test_send_due_leave_alerts_sends_due_text_once(monkeypatch, tmp_path):
         sent_messages.append(message)
         return None
 
-    monkeypatch.setattr("pipeline.send_text_message", fake_send_text_message)
-    monkeypatch.setattr("pipeline.Config.state_dir", str(tmp_path))
+    monkeypatch.setattr("backend.pipeline.send_text_message", fake_send_text_message)
+    monkeypatch.setattr("backend.pipeline.Config.state_dir", str(tmp_path))
 
     calendar = _FakeCalendar(
         window_events=[
@@ -625,4 +625,4 @@ async def test_send_due_leave_alerts_sends_due_text_once(monkeypatch, tmp_path):
     assert second == []
     assert len(sent_messages) == 1
     assert sent_messages[0].startswith("‼️ hey, it's time to leave for dinner at oozu ramen w/ aryan!")
-    assert "location: Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)" in sent_messages[0]
+    assert "📍 Oozu Ramen (601 S 6th St #102, Champaign, IL 61820)" in sent_messages[0]

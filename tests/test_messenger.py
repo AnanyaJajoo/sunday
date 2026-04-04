@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from errors import MessagingDeliveryError
-from messenger import format_leave_alert, format_summary, send_summary, send_text_message
+from backend.errors import MessagingDeliveryError
+from backend.messenger import format_leave_alert, format_summary, send_summary, send_text_message
 
 
 def test_format_summary_for_event_is_informal_without_inline_email_link(monkeypatch):
-    monkeypatch.setattr("messenger.Config.timezone", "America/Chicago")
+    monkeypatch.setattr("backend.messenger.Config.timezone", "America/Chicago")
 
     message = format_summary(
         parsed_email={
@@ -33,7 +33,7 @@ def test_format_summary_for_event_is_informal_without_inline_email_link(monkeypa
 
 
 def test_format_summary_separates_notes_with_blank_line(monkeypatch):
-    monkeypatch.setattr("messenger.Config.timezone", "America/Chicago")
+    monkeypatch.setattr("backend.messenger.Config.timezone", "America/Chicago")
 
     message = format_summary(
         parsed_email={
@@ -80,11 +80,11 @@ async def test_send_summary_sends_email_link_as_follow_up_message(monkeypatch):
         sent_messages.append(message)
         return True
 
-    monkeypatch.setattr("messenger.Config.telegram_token", "token")
-    monkeypatch.setattr("messenger.Config.telegram_chat_id", "chat")
-    monkeypatch.setattr("messenger.Config.imessage_enabled", False)
-    monkeypatch.setattr("messenger.Config.text_email_links", True)
-    monkeypatch.setattr("messenger.TelegramMessenger.send", fake_send)
+    monkeypatch.setattr("backend.messenger.Config.telegram_token", "token")
+    monkeypatch.setattr("backend.messenger.Config.telegram_chat_id", "chat")
+    monkeypatch.setattr("backend.messenger.Config.imessage_enabled", False)
+    monkeypatch.setattr("backend.messenger.Config.text_email_links", True)
+    monkeypatch.setattr("backend.messenger.TelegramMessenger.send", fake_send)
 
     await send_summary(
         parsed_email={
@@ -115,11 +115,11 @@ async def test_send_summary_skips_email_link_when_text_email_links_disabled(monk
         sent_messages.append(message)
         return True
 
-    monkeypatch.setattr("messenger.Config.telegram_token", "token")
-    monkeypatch.setattr("messenger.Config.telegram_chat_id", "chat")
-    monkeypatch.setattr("messenger.Config.imessage_enabled", False)
-    monkeypatch.setattr("messenger.Config.text_email_links", False)
-    monkeypatch.setattr("messenger.TelegramMessenger.send", fake_send)
+    monkeypatch.setattr("backend.messenger.Config.telegram_token", "token")
+    monkeypatch.setattr("backend.messenger.Config.telegram_chat_id", "chat")
+    monkeypatch.setattr("backend.messenger.Config.imessage_enabled", False)
+    monkeypatch.setattr("backend.messenger.Config.text_email_links", False)
+    monkeypatch.setattr("backend.messenger.TelegramMessenger.send", fake_send)
 
     await send_summary(
         parsed_email={
@@ -142,9 +142,9 @@ async def test_send_summary_skips_email_link_when_text_email_links_disabled(monk
 
 @pytest.mark.anyio
 async def test_send_summary_requires_configured_channel(monkeypatch):
-    monkeypatch.setattr("messenger.Config.telegram_token", "")
-    monkeypatch.setattr("messenger.Config.telegram_chat_id", "")
-    monkeypatch.setattr("messenger.Config.imessage_enabled", False)
+    monkeypatch.setattr("backend.messenger.Config.telegram_token", "")
+    monkeypatch.setattr("backend.messenger.Config.telegram_chat_id", "")
+    monkeypatch.setattr("backend.messenger.Config.imessage_enabled", False)
 
     with pytest.raises(MessagingDeliveryError):
         await send_summary({"summary": "Hello", "urgency": "none", "can_wait": True})
@@ -152,9 +152,9 @@ async def test_send_summary_requires_configured_channel(monkeypatch):
 
 @pytest.mark.anyio
 async def test_send_text_message_requires_configured_channel(monkeypatch):
-    monkeypatch.setattr("messenger.Config.telegram_token", "")
-    monkeypatch.setattr("messenger.Config.telegram_chat_id", "")
-    monkeypatch.setattr("messenger.Config.imessage_enabled", False)
+    monkeypatch.setattr("backend.messenger.Config.telegram_token", "")
+    monkeypatch.setattr("backend.messenger.Config.telegram_chat_id", "")
+    monkeypatch.setattr("backend.messenger.Config.imessage_enabled", False)
 
     with pytest.raises(MessagingDeliveryError):
         await send_text_message("hello")

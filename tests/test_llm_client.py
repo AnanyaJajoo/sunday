@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from llm_client import LLMClient
+from backend.llm_client import LLMClient
 
 
 class _FakeResponse:
@@ -58,10 +58,10 @@ async def test_post_with_retries_retries_429_then_succeeds(monkeypatch):
         _FakeResponse(200, {"ok": True}),
     ]
 
-    monkeypatch.setattr("llm_client.Config.llm_retry_attempts", 2)
-    monkeypatch.setattr("llm_client.Config.llm_retry_base_seconds", 0.01)
+    monkeypatch.setattr("backend.llm_client.Config.llm_retry_attempts", 2)
+    monkeypatch.setattr("backend.llm_client.Config.llm_retry_base_seconds", 0.01)
     monkeypatch.setattr(
-        "llm_client.httpx.AsyncClient",
+        "backend.llm_client.httpx.AsyncClient",
         lambda timeout: _FakeAsyncClient(responses),
     )
 
@@ -83,9 +83,9 @@ async def test_post_with_retries_raises_clear_error_after_final_429(monkeypatch)
 
     responses = [_FakeResponse(429, {}, {"retry-after": "0"})]
 
-    monkeypatch.setattr("llm_client.Config.llm_retry_attempts", 1)
+    monkeypatch.setattr("backend.llm_client.Config.llm_retry_attempts", 1)
     monkeypatch.setattr(
-        "llm_client.httpx.AsyncClient",
+        "backend.llm_client.httpx.AsyncClient",
         lambda timeout: _FakeAsyncClient(responses),
     )
 
@@ -102,6 +102,6 @@ def test_resolve_requests_per_minute_uses_cerebras_default(monkeypatch):
     client = object.__new__(LLMClient)
     client.provider = "cerebras"
 
-    monkeypatch.setattr("llm_client.Config.llm_requests_per_minute", None)
+    monkeypatch.setattr("backend.llm_client.Config.llm_requests_per_minute", None)
 
     assert client._resolve_requests_per_minute() == 25

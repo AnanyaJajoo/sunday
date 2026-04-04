@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from config import Config
+from .config import Config
 
 
 def get_state_dir(create: bool = False) -> Path:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from gmail_watcher import GmailWatcher
+from backend.gmail_watcher import GmailWatcher
 
 
 class _FakeRequest:

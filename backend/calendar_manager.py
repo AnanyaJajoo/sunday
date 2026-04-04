@@ -10,8 +10,8 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from config import Config
-from errors import CalendarEventError
+from .config import Config
+from .errors import CalendarEventError
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class CalendarManager:
     DISPLAY_LOCATION_PROPERTY = "smartCalendarDisplayLocation"
 
     def __init__(self) -> None:
-        from google_auth import get_google_service
+        from .google_auth import get_google_service
 
         self.service = get_google_service("calendar", "v3")
 

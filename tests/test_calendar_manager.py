@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from calendar_manager import CalendarManager
+from backend.calendar_manager import CalendarManager
 
 
 class _FakeRequest:
@@ -63,8 +63,8 @@ def test_calendar_manager_returns_existing_event_without_inserting(monkeypatch):
     events = _FakeEvents({"items": [{"id": "evt-1", "htmlLink": "https://calendar.google.com/existing"}]})
     manager = object.__new__(CalendarManager)
     manager.service = _FakeService(events)
-    monkeypatch.setattr("calendar_manager.Config.timezone", "America/Chicago")
-    monkeypatch.setattr("calendar_manager.Config.target_calendar_id", "sunday@group.calendar.google.com")
+    monkeypatch.setattr("backend.calendar_manager.Config.timezone", "America/Chicago")
+    monkeypatch.setattr("backend.calendar_manager.Config.target_calendar_id", "sunday@group.calendar.google.com")
 
     result = manager.create_smart_event(
         {
@@ -87,8 +87,8 @@ def test_calendar_manager_sets_extended_property_on_insert(monkeypatch):
     events = _FakeEvents({"items": []})
     manager = object.__new__(CalendarManager)
     manager.service = _FakeService(events)
-    monkeypatch.setattr("calendar_manager.Config.timezone", "America/Chicago")
-    monkeypatch.setattr("calendar_manager.Config.target_calendar_id", "sunday@group.calendar.google.com")
+    monkeypatch.setattr("backend.calendar_manager.Config.timezone", "America/Chicago")
+    monkeypatch.setattr("backend.calendar_manager.Config.target_calendar_id", "sunday@group.calendar.google.com")
 
     result = manager.create_smart_event(
         {
@@ -158,8 +158,8 @@ def test_list_events_for_day_reads_across_all_calendars(monkeypatch):
     )
     manager = object.__new__(CalendarManager)
     manager.service = _FakeService(events, calendar_list)
-    monkeypatch.setattr("calendar_manager.Config.timezone", "America/Chicago")
-    monkeypatch.setattr("calendar_manager.Config.target_calendar_id", "sunday@group.calendar.google.com")
+    monkeypatch.setattr("backend.calendar_manager.Config.timezone", "America/Chicago")
+    monkeypatch.setattr("backend.calendar_manager.Config.target_calendar_id", "sunday@group.calendar.google.com")
 
     result = manager.list_events_for_day("2026-04-02")
 
@@ -175,7 +175,7 @@ def test_list_events_for_day_reads_across_all_calendars(monkeypatch):
 
 
 def test_compute_smart_reminders_skips_day_before_for_casual_lunch(monkeypatch):
-    monkeypatch.setattr("calendar_manager.Config.prep_time", 15)
+    monkeypatch.setattr("backend.calendar_manager.Config.prep_time", 15)
 
     reminders = CalendarManager._compute_smart_reminders(
         datetime(2026, 4, 1, 15, 0),
@@ -197,7 +197,7 @@ def test_compute_smart_reminders_skips_day_before_for_casual_lunch(monkeypatch):
 
 
 def test_compute_smart_reminders_keeps_day_before_for_interview(monkeypatch):
-    monkeypatch.setattr("calendar_manager.Config.online_prep", 5)
+    monkeypatch.setattr("backend.calendar_manager.Config.online_prep", 5)
 
     reminders = CalendarManager._compute_smart_reminders(
         datetime(2026, 4, 2, 9, 0),
@@ -218,7 +218,7 @@ def test_compute_smart_reminders_keeps_day_before_for_interview(monkeypatch):
 
 
 def test_build_description_formats_travel_sentence_for_selected_travel_type(monkeypatch):
-    monkeypatch.setattr("calendar_manager.Config.travel_mode", "driving")
+    monkeypatch.setattr("backend.calendar_manager.Config.travel_mode", "driving")
 
     description = CalendarManager._build_description(
         {
@@ -238,7 +238,7 @@ def test_build_description_formats_travel_sentence_for_selected_travel_type(monk
 
 
 def test_build_description_uses_walk_phrase_when_travel_type_is_walking(monkeypatch):
-    monkeypatch.setattr("calendar_manager.Config.travel_mode", "walking")
+    monkeypatch.setattr("backend.calendar_manager.Config.travel_mode", "walking")
 
     description = CalendarManager._build_description(
         {
@@ -258,7 +258,7 @@ def test_build_description_uses_walk_phrase_when_travel_type_is_walking(monkeypa
 
 
 def test_build_description_uses_commute_phrase_for_transit(monkeypatch):
-    monkeypatch.setattr("calendar_manager.Config.travel_mode", "transit")
+    monkeypatch.setattr("backend.calendar_manager.Config.travel_mode", "transit")
 
     description = CalendarManager._build_description(
         {

@@ -20,6 +20,7 @@ ENV/
 .state/
 .vercel/
 .claude/
+models/
 
 # ─── Config & secrets (NEVER commit these) ────────────────────
 config.env

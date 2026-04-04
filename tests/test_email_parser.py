@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from email_parser import EmailParseError, enrich_event_details, get_calendar_readiness_issues, parse_email
+from backend.email_parser import EmailParseError, enrich_event_details, get_calendar_readiness_issues, parse_email
 
 
 @pytest.mark.anyio
@@ -29,7 +29,7 @@ async def test_parse_email_returns_validated_data(monkeypatch):
             "can_wait": False,
         }
 
-    monkeypatch.setattr("email_parser.parse_with_json", fake_parse_with_json)
+    monkeypatch.setattr("backend.email_parser.parse_with_json", fake_parse_with_json)
 
     parsed = await parse_email({"id": "msg-1", "body": "hello"})
 
@@ -50,7 +50,7 @@ async def test_parse_email_raises_on_invalid_structure(monkeypatch):
             "can_wait": False,
         }
 
-    monkeypatch.setattr("email_parser.parse_with_json", fake_parse_with_json)
+    monkeypatch.setattr("backend.email_parser.parse_with_json", fake_parse_with_json)
 
     with pytest.raises(EmailParseError):
         await parse_email({"id": "msg-2", "body": "hello"})

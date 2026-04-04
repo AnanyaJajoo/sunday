@@ -14,8 +14,8 @@ import time
 from html.parser import HTMLParser
 from typing import Any
 
-from config import Config
-from state_store import get_state_dir, get_state_file
+from .config import Config
+from .state_store import get_state_dir, get_state_file
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class GmailWatcher:
     """
 
     def __init__(self) -> None:
-        from google_auth import get_google_service
+        from .google_auth import get_google_service
 
         self.service = get_google_service("gmail", "v1")
         self._account_email = self._load_account_email()

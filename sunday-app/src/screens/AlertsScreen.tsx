@@ -1,6 +1,7 @@
 import React from "react";
 import { StatusBar, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { FONTS } from "../constants/fonts";
 
 const BACKGROUND = "#121212";
 
@@ -23,5 +24,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { color: "#ffffff", fontSize: 24, fontWeight: "600" },
+  title: { color: "#ffffff", fontSize: 24, fontFamily: FONTS.semibold },
 });

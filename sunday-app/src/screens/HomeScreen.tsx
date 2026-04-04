@@ -33,13 +33,13 @@ export function HomeScreen({ onBackgroundPress }: HomeScreenProps) {
         Animated.timing(scale, {
           toValue: 1.15,
           duration: 80,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.spring(scale, {
           toValue: 1,
           speed: 50,
           bounciness: 10,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
     });

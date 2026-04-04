@@ -11,14 +11,14 @@ import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from calendar_manager import CalendarManager
-from config import Config
-from email_parser import enrich_event_details, get_calendar_readiness_issues, parse_email, summarise_parsed
-from errors import ConfigurationError, TravelEstimationError
-from gmail_watcher import GmailWatcher
-from messenger import format_leave_alert, send_summary, send_text_message
-from state_store import get_state_file
-from travel_estimator import TravelEstimator
+from .calendar_manager import CalendarManager
+from .config import Config
+from .email_parser import enrich_event_details, get_calendar_readiness_issues, parse_email, summarise_parsed
+from .errors import ConfigurationError, TravelEstimationError
+from .gmail_watcher import GmailWatcher
+from .messenger import format_leave_alert, send_summary, send_text_message
+from .state_store import get_state_file
+from .travel_estimator import TravelEstimator
 
 log = logging.getLogger(__name__)
 

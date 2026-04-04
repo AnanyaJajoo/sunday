@@ -10,11 +10,11 @@ import json
 import logging
 from datetime import datetime
 
-from config import Config
+from .config import Config
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from errors import DayPlanningError
-from llm_client import parse_with_json
+from .errors import DayPlanningError
+from .llm_client import parse_with_json
 
 log = logging.getLogger(__name__)
 

@@ -16,9 +16,9 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
-from config import Config
-from errors import EmailParseError
-from llm_client import parse_with_json
+from .config import Config
+from .errors import EmailParseError
+from .llm_client import parse_with_json
 
 log = logging.getLogger(__name__)
 
