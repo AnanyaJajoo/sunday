@@ -12,36 +12,56 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const BACKGROUND = "#121212";
 const DOT_SIZE = "25%";
+const RECORDING = "#eb4034";
 
 export function HomeScreen() {
+  const [isRecording, setIsRecording] = React.useState(false);
   const dotScale = React.useRef(new Animated.Value(1)).current;
+  const recordingProgress = React.useRef(new Animated.Value(0)).current;
 
   const handleDotPress = React.useCallback(() => {
+    const nextRecording = !isRecording;
+
+    setIsRecording(nextRecording);
+
     dotScale.stopAnimation(() => {
       dotScale.setValue(1);
 
-      Animated.sequence([
-        Animated.timing(dotScale, {
-          toValue: 0.94,
-          duration: 70,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+      Animated.parallel([
+        Animated.timing(recordingProgress, {
+          toValue: nextRecording ? 1 : 0,
+          duration: 180,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: false,
         }),
-        Animated.spring(dotScale, {
-          toValue: 1.08,
-          tension: 280,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.spring(dotScale, {
-          toValue: 1,
-          tension: 220,
-          friction: 10,
-          useNativeDriver: true,
-        }),
+        Animated.sequence([
+          Animated.timing(dotScale, {
+            toValue: 0.94,
+            duration: 70,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.spring(dotScale, {
+            toValue: 1.08,
+            tension: 280,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+          Animated.spring(dotScale, {
+            toValue: 1,
+            tension: 220,
+            friction: 10,
+            useNativeDriver: true,
+          }),
+        ]),
       ]).start();
     });
-  }, [dotScale]);
+  }, [dotScale, isRecording, recordingProgress]);
+
+  const dotBackground = recordingProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["#ffffff", RECORDING],
+  });
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -55,6 +75,7 @@ export function HomeScreen() {
             style={[
               styles.centerDot,
               {
+                backgroundColor: dotBackground,
                 transform: [{ scale: dotScale }],
               },
             ]}
