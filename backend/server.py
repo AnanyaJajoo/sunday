@@ -8,14 +8,17 @@ Exposes HTTP endpoints for:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import re
+import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from .calendar_manager import CalendarManager
@@ -25,6 +28,7 @@ from .errors import ConfigurationError, TravelEstimationError
 from .logging_utils import setup_logging
 from .pipeline import run_pipeline, send_due_leave_alerts
 from .state_store import get_state_file
+from .transcription import TranscriptionError, transcribe_audio_file
 from .travel_estimator import TravelEstimator
 
 setup_logging(Config.log_level)
@@ -92,6 +96,10 @@ class PushTokenRequest(BaseModel):
     token: str
 
 
+class TranscriptionResponse(BaseModel):
+    text: str
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _ensure_pipeline_ready() -> None:
@@ -135,6 +143,19 @@ def _map_calendar_event(item: dict) -> dict:
         "is_online": not bool(item.get("location")),
         "meeting_link": _extract_meeting_link(item.get("description")),
     }
+
+
+async def _save_upload_to_temp(upload: UploadFile) -> Path:
+    """Persist an uploaded recording to a temp file for local transcription."""
+    suffix = Path(upload.filename or "").suffix or ".m4a"
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, prefix="sunday-upload-")
+    try:
+        content = await upload.read()
+        temp.write(content)
+    finally:
+        temp.close()
+        await upload.close()
+    return Path(temp.name)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -344,3 +365,21 @@ async def register_push_token(body: PushTokenRequest):
         log.info("Push token registered")
 
     return {"ok": True}
+
+
+@app.post("/api/transcribe", response_model=TranscriptionResponse, dependencies=[Depends(_require_auth)])
+async def transcribe_recording(file: UploadFile = File(...)):
+    """Receive an audio recording from the app and transcribe it on the Mac."""
+    upload_path = await _save_upload_to_temp(file)
+    try:
+        transcript = await asyncio.to_thread(transcribe_audio_file, upload_path)
+        log.info("Transcribed recording: %s", transcript)
+        return {"text": transcript}
+    except TranscriptionError as exc:
+        log.warning("Transcription failed: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        log.exception("Unexpected transcription error: %s", exc)
+        raise HTTPException(status_code=500, detail="Transcription failed.") from exc
+    finally:
+        upload_path.unlink(missing_ok=True)

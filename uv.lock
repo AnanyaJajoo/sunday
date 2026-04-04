@@ -799,6 +799,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-multipart"
+version = "0.0.22"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/01/979e98d542a70714b0cb2b6728ed0b7c46792b695e3eaec3e20711271ca3/python_multipart-0.0.22.tar.gz", hash = "sha256:7340bef99a7e0032613f56dc36027b959fd3b30a787ed62d310e951f7c3a3a58", size = 37612, upload-time = "2026-01-25T10:15:56.219Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/d0/397f9626e711ff749a95d96b7af99b9c566a9bb5129b8e4c10fc4d100304/python_multipart-0.0.22-py3-none-any.whl", hash = "sha256:2b2cd894c83d21bf49d702499531c7bafd057d730c201782048f7945d82de155", size = 24579, upload-time = "2026-01-25T10:15:54.811Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -902,7 +911,9 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "whisper-cpp-cli" },
 ]
 
 [package.optional-dependencies]
@@ -922,7 +933,9 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "python-multipart", specifier = ">=0.0.22" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29.0" },
+    { name = "whisper-cpp-cli", specifier = ">=0.0.3" },
 ]
 provides-extras = ["dev"]
 
@@ -1270,4 +1283,23 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a5/8f/aea9c71cc92bf9b6cc0f7f70df8f0b420636b6c96ef4feee1e16f80f75dd/websockets-16.0-pp311-pypy311_pp73-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:0298d07ee155e2e9fda5be8a9042200dd2e3bb0b8a38482156576f863a9d457c", size = 176968, upload-time = "2026-01-10T09:23:41.031Z" },
     { url = "https://files.pythonhosted.org/packages/9a/3f/f70e03f40ffc9a30d817eef7da1be72ee4956ba8d7255c399a01b135902a/websockets-16.0-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:a653aea902e0324b52f1613332ddf50b00c06fdaf7e92624fbf8c77c78fa5767", size = 178735, upload-time = "2026-01-10T09:23:42.259Z" },
     { url = "https://files.pythonhosted.org/packages/6f/28/258ebab549c2bf3e64d2b0217b973467394a9cea8c42f70418ca2c5d0d2e/websockets-16.0-py3-none-any.whl", hash = "sha256:1637db62fad1dc833276dded54215f2c7fa46912301a24bd94d45d46a011ceec", size = 171598, upload-time = "2026-01-10T09:23:45.395Z" },
+]
+
+[[package]]
+name = "whisper-cpp-cli"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/be/dc766c7d1a009f97a445e1db654f3dc8c68d363b94b955ac954949d35566/whisper_cpp_cli-0.0.3.tar.gz", hash = "sha256:59b8f63af2126a46fb997f53cdfd9222539bf759c7ed623d998eba47f7629712", size = 5533, upload-time = "2024-05-01T05:38:39.001Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/11/359833bd72353eb0142defc26ac2d8bd957da5b72540bd546ce7f0caea83/whisper_cpp_cli-0.0.3-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:1d85c6ca3dbf907c07a59f8daa620b3d0e3b263356c5220357dd7e06b42bc523", size = 598977, upload-time = "2024-05-01T05:38:17.952Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/eb/4d1a96d887b62fdddc58e3e0c9c94f673b54cd9fc025329340f9c4d052bc/whisper_cpp_cli-0.0.3-py3-none-macosx_11_0_arm64.whl", hash = "sha256:6c9cb1d10770da5b7f92c54c2ace29142694b5b392c274db1d95ce1d2f6223d2", size = 523109, upload-time = "2024-05-01T05:38:19.994Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/5a/44515c53e5ea7434568c3bf3cbd44e29cb377ed2611b70a9b0023f961f7e/whisper_cpp_cli-0.0.3-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6f5c4950690188cb8ca4e33affc63c659e01accdbdad13dbbbdcde16a4e91c05", size = 569673, upload-time = "2024-05-01T05:38:22.148Z" },
+    { url = "https://files.pythonhosted.org/packages/95/f4/065c3b22068842486b792092323c49532f00556368a60c23e885ced95745/whisper_cpp_cli-0.0.3-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:17fa2feb3b0af9a13cc56089d5d52226b93fedf1567545a1da4d6958ccd808b3", size = 630974, upload-time = "2024-05-01T05:38:24.417Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/a6/794ae34029bdcecf25c49f8017661c8645d0d0c79d983f5d188faa2287d9/whisper_cpp_cli-0.0.3-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:917fdb870811a4f19ccb6677ca60e97bc32502c5adaacd20f63f4a3fe6d761c7", size = 714816, upload-time = "2024-05-01T05:38:26.432Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/14/81dc2f85743343286756825312919ff6e29b61d4cd7457c32fc972d77d0f/whisper_cpp_cli-0.0.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:03133be9568117a85d4d8daedd7fe8469807d10d2fe92e0e177d2fcb5147808f", size = 589027, upload-time = "2024-05-01T05:38:28.773Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/9b/7f88d4dbf2556af0c7b18c3b5a1f1a00867a3d6e723d5499d556d1c0aeb6/whisper_cpp_cli-0.0.3-py3-none-musllinux_1_1_i686.whl", hash = "sha256:72190ff79a831fe19dd6f0e1f9b07e3717a6cac284a39d5d84875f3ebf229f83", size = 1233980, upload-time = "2024-05-01T05:38:30.206Z" },
+    { url = "https://files.pythonhosted.org/packages/84/f9/50e2cf8b6dd86878b8a786d8df59976a3622d1e4a9bb9c8c564a9b337d48/whisper_cpp_cli-0.0.3-py3-none-musllinux_1_1_ppc64le.whl", hash = "sha256:ca388e49aaf3ac69e7cc5f49564d7c4f4d31d1a2c5e9d4138d5e23291e0a22dd", size = 1260626, upload-time = "2024-05-01T05:38:32.313Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/ee/2e57ee256cecc1c1812706e872b82e59b07f0cfb4748a04131ed1842555b/whisper_cpp_cli-0.0.3-py3-none-musllinux_1_1_x86_64.whl", hash = "sha256:5ff95d91321496ada747ccb13feb873fd7789639f082fc42f86a7179f8822e73", size = 1135664, upload-time = "2024-05-01T05:38:34.293Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/78/c6693cad9679e055ed0417e3cd8f97fd1f621d27e0fe0ea2501fbf7eb755/whisper_cpp_cli-0.0.3-py3-none-win32.whl", hash = "sha256:a49118045d3db4af5fdc3c249c8ca648ab73f1c038ccecd4a7590099d6c13b03", size = 300180, upload-time = "2024-05-01T05:38:35.73Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/9e/5d0ae83e7e42a9e3305d6de22008a7375721fcfc025cd81836fb6cd09678/whisper_cpp_cli-0.0.3-py3-none-win_amd64.whl", hash = "sha256:b1d2005fc60c967670254614f4c21f37277e25d75c0d670d61f3ad409d53abe1", size = 364120, upload-time = "2024-05-01T05:38:37.591Z" },
 ]

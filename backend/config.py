@@ -158,6 +158,16 @@ class Config:
     # ── Expo app ──
     expo_push_enabled: bool = os.getenv("EXPO_PUSH_ENABLED", "false").lower() == "true"
     app_location_max_age_minutes: int = int(os.getenv("APP_LOCATION_MAX_AGE_MINUTES", "30"))
+    transcription_model_path: str = _resolve_project_path(
+        os.getenv(
+            "TRANSCRIPTION_MODEL_PATH",
+            "sunday-app/assets/models/ggml-large-v3-turbo-q5_0.bin",
+        )
+    )
+    transcription_language: str = os.getenv("TRANSCRIPTION_LANGUAGE", "en").strip() or "en"
+    transcription_threads: int = int(
+        os.getenv("TRANSCRIPTION_THREADS", str(min(8, os.cpu_count() or 4)))
+    )
 
     # ── Advanced ──
     max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "1024"))
@@ -278,6 +288,12 @@ class Config:
         if invalid_work_days:
             errors.append(
                 "WORK_DAYS must be a comma-separated list using mon,tue,wed,thu,fri,sat,sun."
+            )
+
+        if not Path(cls.transcription_model_path).exists():
+            warnings.append(
+                f"Speech transcription model not found: '{cls.transcription_model_path}'. "
+                "The /api/transcribe endpoint will stay unavailable until the model is present."
             )
 
         return {"errors": errors, "warnings": warnings}

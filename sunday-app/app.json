@@ -10,11 +10,13 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Allow sunday to record your voice so it can transcribe speech."
       }
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-audio"
     ],
     "android": {
       "adaptiveIcon": {
