@@ -3,6 +3,7 @@ import { useFonts } from "expo-font";
 import {
   Animated,
   Dimensions,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -163,6 +164,7 @@ function Main() {
 
   const handleTabPress = React.useCallback(
     (index: number) => {
+      Keyboard.dismiss();
       if (index !== RECORD_TAB_INDEX && !navVisible) {
         animateNavVisibility(true);
       }
@@ -280,6 +282,7 @@ function Main() {
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false },
         )}
+        onScrollBeginDrag={() => Keyboard.dismiss()}
         onMomentumScrollEnd={handleMomentumEnd}
         contentOffset={{ x: INITIAL_INDEX * SCREEN_WIDTH, y: 0 }}
       >
