@@ -593,6 +593,20 @@ export function SettingsScreen() {
     return activeSelectField.options ?? [];
   }, [activeSelectField, timeZoneOptions]);
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingScreen}>
+          <View style={styles.loadingState}>
+            <ActivityIndicator color="#ffffff" />
+            <Text style={styles.loadingText}>Loading settings…</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
@@ -606,19 +620,13 @@ export function SettingsScreen() {
           <Text style={styles.title}>Settings</Text>
         </View>
 
-        {isLoading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color="#ffffff" />
-            <Text style={styles.loadingText}>Loading settings…</Text>
-          </View>
-        ) : (
-          <>
-            {SETTINGS_SECTIONS.map((section) => (
-              <View key={section.title} style={styles.section}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <View style={styles.sectionPanel}>
-                  {section.title === "Locations"
-                    ? LOCATION_SETTING_GROUPS.map((group, index) => {
+        <>
+          {SETTINGS_SECTIONS.map((section) => (
+            <View key={section.title} style={styles.section}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <View style={styles.sectionPanel}>
+                {section.title === "Locations"
+                  ? LOCATION_SETTING_GROUPS.map((group, index) => {
                         const locationValue = String(settings[group.locationKey] ?? "");
                         const latitude = parseCoordinate(settings[group.latitudeKey]);
                         const longitude = parseCoordinate(settings[group.longitudeKey]);
@@ -664,8 +672,8 @@ export function SettingsScreen() {
                             </View>
                           </View>
                         );
-                      })
-                    : section.fields.map((field, index) => {
+                    })
+                  : section.fields.map((field, index) => {
                     const rawValue = settings[field.key];
                     const stringValue = typeof rawValue === "boolean" ? "" : String(rawValue ?? "");
                     const boolValue = rawValue === true;
@@ -785,25 +793,24 @@ export function SettingsScreen() {
                         )}
                       </View>
                     );
-                  })}
-                </View>
+                })}
               </View>
-            ))}
+            </View>
+          ))}
 
-            {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-            {statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null}
-            {errors.map((error) => (
-              <Text key={`error-${error}`} style={styles.validationText}>
-                {error}
-              </Text>
-            ))}
-            {warnings.map((warning) => (
-              <Text key={`warning-${warning}`} style={styles.warningText}>
-                {warning}
-              </Text>
-            ))}
-          </>
-        )}
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+          {statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null}
+          {errors.map((error) => (
+            <Text key={`error-${error}`} style={styles.validationText}>
+              {error}
+            </Text>
+          ))}
+          {warnings.map((warning) => (
+            <Text key={`warning-${warning}`} style={styles.warningText}>
+              {warning}
+            </Text>
+          ))}
+        </>
       </ScrollView>
 
       {activeLocationGroup ? (
@@ -865,10 +872,15 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
   },
   loadingState: {
-    minHeight: 260,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
+  },
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
   },
   loadingText: {
     color: MUTED,
