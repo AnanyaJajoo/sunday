@@ -15,6 +15,7 @@ import {
   Switch,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -394,6 +395,7 @@ function formatTimeForBackend(date: Date) {
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [settings, setSettings] = React.useState<AppSettingsValues>(getInitialSettingsState);
   const [isPhoneLocationEnabled, setIsPhoneLocationEnabled] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -670,6 +672,7 @@ export function SettingsScreen() {
     [settings.TIMEZONE],
   );
   const headerTopInset = insets.top + 8;
+  const timezoneSheetHiddenY = Math.max(windowHeight, 420);
 
   const activePickerCoordinate = React.useMemo(() => {
     if (!activeLocationGroup) {
@@ -691,7 +694,7 @@ export function SettingsScreen() {
       timezoneBackdropOpacity.stopAnimation();
       timezoneSheetTranslateY.stopAnimation();
       timezoneBackdropOpacity.setValue(0);
-      timezoneSheetTranslateY.setValue(34);
+      timezoneSheetTranslateY.setValue(timezoneSheetHiddenY);
       Animated.parallel([
         Animated.timing(timezoneBackdropOpacity, {
           toValue: 1,
@@ -727,8 +730,8 @@ export function SettingsScreen() {
           useNativeDriver: true,
         }),
         Animated.timing(timezoneSheetTranslateY, {
-          toValue: 34,
-          duration: 190,
+          toValue: timezoneSheetHiddenY,
+          duration: 240,
           useNativeDriver: true,
         }),
       ]),
@@ -741,6 +744,7 @@ export function SettingsScreen() {
     isTimezonePickerMounted,
     isTimezonePickerVisible,
     timezoneBackdropOpacity,
+    timezoneSheetHiddenY,
     timezoneSheetTranslateY,
   ]);
 
