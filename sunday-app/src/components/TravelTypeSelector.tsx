@@ -125,7 +125,7 @@ export function TravelTypeSelector({ value, onChange }: TravelTypeSelectorProps)
 const styles = StyleSheet.create({
   container: {
     position: "relative",
-    minHeight: 40,
+    minHeight: 34,
     borderRadius: 999,
     backgroundColor: CONTAINER,
     paddingHorizontal: PADDING,
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    height: 32,
+    height: 28,
   },
   optionSlot: {
     width: "auto",
