@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const BACKGROUND = "#121212";
-const DOT_SIZE = "25%";
+const DOT_SIZE = "50%";
 const RECORDING = "#eb4034";
 
 export function HomeScreen() {
