@@ -52,7 +52,6 @@ export function HomeScreen() {
       velocity: 4.2,
       tension: 340,
       friction: 11,
-      mass: 0.75,
       overshootClamping: false,
       restDisplacementThreshold: 0.001,
       restSpeedThreshold: 0.001,
@@ -80,7 +79,7 @@ export function HomeScreen() {
             <VideoView
               player={player}
               nativeControls={false}
-              allowsFullscreen={false}
+              fullscreenOptions={{ enable: false }}
               allowsPictureInPicture={false}
               contentFit="cover"
               style={styles.orbVideo}

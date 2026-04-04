@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { registerPushToken } from "../api";
 
@@ -14,6 +15,10 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   useEffect(() => {
+    if (Constants.appOwnership === "expo") {
+      return;
+    }
+
     (async () => {
       try {
         const { status } = await Notifications.requestPermissionsAsync();
