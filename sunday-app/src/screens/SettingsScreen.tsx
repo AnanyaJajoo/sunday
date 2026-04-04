@@ -24,6 +24,7 @@ const PANEL_ALT = "#252525";
 const BORDER = "#323232";
 const MUTED = "#8b8b8b";
 const ACCENT = "#ffffff";
+const AUTOSAVE_DELAY_MS = 500;
 
 type FieldKind = "text" | "number" | "decimal" | "boolean" | "choice";
 
@@ -171,6 +172,11 @@ function getInitialSettingsState() {
   return values;
 }
 
+function serializeSettings(settings: AppSettingsValues) {
+  const sortedKeys = Object.keys(settings).sort();
+  return JSON.stringify(settings, sortedKeys);
+}
+
 export function SettingsScreen() {
   const [settings, setSettings] = React.useState<AppSettingsValues>(getInitialSettingsState);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -179,13 +185,23 @@ export function SettingsScreen() {
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [warnings, setWarnings] = React.useState<string[]>([]);
   const [errors, setErrors] = React.useState<string[]>([]);
+  const lastSavedSettingsRef = React.useRef("");
+  const hasLoadedSettingsRef = React.useRef(false);
+  const saveSequenceRef = React.useRef(0);
+  const saveTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadSettings = React.useCallback(async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
       const response = await fetchAppSettings();
-      setSettings((current) => ({ ...current, ...response.settings }));
+      setSettings((current) => {
+        const nextSettings = { ...current, ...response.settings };
+        lastSavedSettingsRef.current = serializeSettings(nextSettings);
+        hasLoadedSettingsRef.current = true;
+        return nextSettings;
+      });
       setWarnings(response.warnings);
       setErrors(response.errors);
     } catch (error) {
@@ -198,6 +214,17 @@ export function SettingsScreen() {
   React.useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  React.useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleTextChange = React.useCallback((key: string, value: string) => {
     setSettings((current) => ({
@@ -213,22 +240,61 @@ export function SettingsScreen() {
     }));
   }, []);
 
-  const handleSave = React.useCallback(async () => {
-    setIsSaving(true);
-    setStatusMessage(null);
-    setErrorMessage(null);
-    try {
-      const response = await saveAppSettings(settings);
-      setSettings((current) => ({ ...current, ...response.settings }));
-      setWarnings(response.warnings);
-      setErrors(response.errors);
-      setStatusMessage("Saved to config.env");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to save settings.");
-    } finally {
-      setIsSaving(false);
+  React.useEffect(() => {
+    if (isLoading || !hasLoadedSettingsRef.current) {
+      return;
     }
-  }, [settings]);
+
+    const serialized = serializeSettings(settings);
+    if (serialized === lastSavedSettingsRef.current) {
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
+
+    const saveId = ++saveSequenceRef.current;
+    setStatusMessage("Saving…");
+
+    saveTimeoutRef.current = setTimeout(() => {
+      const snapshot = settings;
+
+      void (async () => {
+        setIsSaving(true);
+        setErrorMessage(null);
+        try {
+          const response = await saveAppSettings(snapshot);
+          if (saveId !== saveSequenceRef.current) {
+            return;
+          }
+
+          const nextSettings = { ...snapshot, ...response.settings };
+          lastSavedSettingsRef.current = serializeSettings(nextSettings);
+          setSettings(nextSettings);
+          setWarnings(response.warnings);
+          setErrors(response.errors);
+          setStatusMessage("Saved");
+          statusTimeoutRef.current = setTimeout(() => {
+            setStatusMessage((current) => (current === "Saved" ? null : current));
+          }, 1200);
+        } catch (error) {
+          if (saveId !== saveSequenceRef.current) {
+            return;
+          }
+          setErrorMessage(error instanceof Error ? error.message : "Failed to save settings.");
+          setStatusMessage(null);
+        } finally {
+          if (saveId === saveSequenceRef.current) {
+            setIsSaving(false);
+          }
+        }
+      })();
+    }, AUTOSAVE_DELAY_MS);
+  }, [isLoading, settings]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -340,16 +406,6 @@ export function SettingsScreen() {
                 {warning}
               </Text>
             ))}
-
-            <Pressable
-              disabled={isSaving || isLoading}
-              onPress={() => void handleSave()}
-              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-            >
-              <Text style={styles.saveButtonText}>
-                {isSaving ? "Saving…" : "Save Settings"}
-              </Text>
-            </Pressable>
           </>
         )}
       </ScrollView>
@@ -460,22 +516,6 @@ const styles = StyleSheet.create({
   },
   choiceChipTextSelected: {
     color: BACKGROUND,
-  },
-  saveButton: {
-    minHeight: 52,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ffffff",
-    marginTop: 6,
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    color: BACKGROUND,
-    fontFamily: FONTS.semibold,
-    fontSize: 16,
   },
   statusText: {
     color: "#cfcfcf",
