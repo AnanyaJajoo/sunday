@@ -15,7 +15,10 @@ import { AlertsScreen } from "./src/screens/AlertsScreen";
 import { SettingsIcon, RecordIcon, AlertIcon } from "./src/components/NavIcons";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BACKGROUND = "#121212";
+const DOT_COLOR = "#ffffff";
+const RECORDING_COLOR = "#eb4034";
 const NAV_HEIGHT = 60;
 const NAV_SIDE_INSET = 24;
 const NAV_HORIZONTAL_PADDING = 10;
@@ -40,6 +43,8 @@ const NAV_ITEM_WIDTH = (NAV_WIDTH - NAV_HORIZONTAL_PADDING * 2) / TABS.length;
 const INDICATOR_WIDTH = NAV_ITEM_WIDTH - INDICATOR_HORIZONTAL_INSET * 2;
 const INDICATOR_EDGE_EXTENSION = 8;
 const RECORD_TAB_INDEX = 1;
+const CENTER_DOT_SIZE = SCREEN_WIDTH * 0.5;
+const CORNER_DOT_SIZE = 52;
 
 function getIndicatorTarget(index: number) {
   if (index === 0 || index === TABS.length - 1) {
@@ -61,6 +66,7 @@ function Main() {
   const scrollX = React.useRef(new Animated.Value(INITIAL_INDEX * SCREEN_WIDTH)).current;
   const navTranslateY = React.useRef(new Animated.Value(0)).current;
   const [activeIndex, setActiveIndex] = React.useState(INITIAL_INDEX);
+  const [isRecording, setIsRecording] = React.useState(false);
   const [navVisible, setNavVisible] = React.useState(true);
   const indicatorTranslateX = React.useMemo(
     () =>
@@ -85,6 +91,52 @@ function Main() {
     [indicatorTranslateX],
   );
   const navHiddenOffset = NAV_HEIGHT + Math.max(insets.bottom, 14) + 18;
+  const dotCenterLeft = (SCREEN_WIDTH - CENTER_DOT_SIZE) / 2;
+  const dotCenterTop = (SCREEN_HEIGHT - CENTER_DOT_SIZE) / 2;
+  const dotCornerLeft = SCREEN_WIDTH - NAV_SIDE_INSET - CORNER_DOT_SIZE;
+  const dotCornerTop = insets.top + 14;
+  const dotOpacity = React.useMemo(
+    () =>
+      scrollX.interpolate({
+        inputRange: [0, SCREEN_WIDTH, SCREEN_WIDTH * 2],
+        outputRange: isRecording ? [1, 1, 1] : [0, 1, 0],
+        extrapolate: "clamp",
+      }),
+    [isRecording, scrollX],
+  );
+  const dotLeft = React.useMemo(
+    () =>
+      scrollX.interpolate({
+        inputRange: [0, SCREEN_WIDTH, SCREEN_WIDTH * 2],
+        outputRange: isRecording
+          ? [dotCornerLeft, dotCenterLeft, dotCornerLeft]
+          : [dotCenterLeft, dotCenterLeft, dotCenterLeft],
+        extrapolate: "clamp",
+      }),
+    [dotCenterLeft, dotCornerLeft, isRecording, scrollX],
+  );
+  const dotTop = React.useMemo(
+    () =>
+      scrollX.interpolate({
+        inputRange: [0, SCREEN_WIDTH, SCREEN_WIDTH * 2],
+        outputRange: isRecording
+          ? [dotCornerTop, dotCenterTop, dotCornerTop]
+          : [dotCenterTop, dotCenterTop, dotCenterTop],
+        extrapolate: "clamp",
+      }),
+    [dotCenterTop, dotCornerTop, isRecording, scrollX],
+  );
+  const dotSize = React.useMemo(
+    () =>
+      scrollX.interpolate({
+        inputRange: [0, SCREEN_WIDTH, SCREEN_WIDTH * 2],
+        outputRange: isRecording
+          ? [CORNER_DOT_SIZE, CENTER_DOT_SIZE, CORNER_DOT_SIZE]
+          : [CENTER_DOT_SIZE, CENTER_DOT_SIZE, CENTER_DOT_SIZE],
+        extrapolate: "clamp",
+      }),
+    [isRecording, scrollX],
+  );
 
   const animateNavVisibility = React.useCallback(
     (visible: boolean) => {
@@ -148,6 +200,10 @@ function Main() {
     animateNavVisibility(!navVisible);
   }, [activeIndex, animateNavVisibility, navVisible]);
 
+  const handleRecordingToggle = React.useCallback(() => {
+    setIsRecording((current) => !current);
+  }, []);
+
   React.useEffect(() => {
     if (activeIndex !== RECORD_TAB_INDEX && !navVisible) {
       animateNavVisibility(true);
@@ -185,6 +241,29 @@ function Main() {
         <View style={styles.page}><HomeScreen onBackgroundPress={handleRecordBackgroundPress} /></View>
         <View style={styles.page}><AlertsScreen /></View>
       </ScrollView>
+
+      <Animated.View
+        pointerEvents={isRecording || activeIndex === RECORD_TAB_INDEX ? "auto" : "none"}
+        style={[
+          styles.recordDotFrame,
+          {
+            opacity: dotOpacity,
+            width: dotSize,
+            height: dotSize,
+            left: dotLeft,
+            top: dotTop,
+          },
+        ]}
+      >
+        <Pressable onPress={handleRecordingToggle} style={styles.recordDotTapTarget}>
+          <View
+            style={[
+              styles.recordDot,
+              { backgroundColor: isRecording ? RECORDING_COLOR : DOT_COLOR },
+            ]}
+          />
+        </Pressable>
+      </Animated.View>
 
       {/* Bottom Nav */}
       <Animated.View
@@ -262,6 +341,20 @@ const styles = StyleSheet.create({
   page: {
     width: SCREEN_WIDTH,
     flex: 1,
+  },
+  recordDotFrame: {
+    position: "absolute",
+    zIndex: 5,
+  },
+  recordDotTapTarget: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recordDot: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 999,
   },
   navBar: {
     position: "absolute",
