@@ -161,7 +161,7 @@ class Config:
     transcription_model_path: str = _resolve_project_path(
         os.getenv(
             "TRANSCRIPTION_MODEL_PATH",
-            "sunday-app/assets/models/ggml-large-v3-turbo-q5_0.bin",
+            "models/transcription/ggml-large-v3-turbo-q5_0.bin",
         )
     )
     transcription_language: str = os.getenv("TRANSCRIPTION_LANGUAGE", "en").strip() or "en"
