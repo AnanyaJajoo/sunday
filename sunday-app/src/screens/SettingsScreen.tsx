@@ -49,6 +49,7 @@ const TOGGLE_ON = "#5f5f5f";
 const AUTOSAVE_DELAY_MS = 500;
 const SETTINGS_RETRY_DELAY_MS = 2000;
 const KEYBOARD_ROW_CLEARANCE = 72;
+const TIMEZONE_SHEET_OVERDRAW = 72;
 const TIME_SETTING_KEYS = ["WORKDAY_START_TIME", "WORKDAY_END_TIME"] as const;
 type TimeSettingKey = (typeof TIME_SETTING_KEYS)[number];
 const NUMERIC_PICKER_KEYS = [
@@ -727,8 +728,8 @@ export function SettingsScreen() {
         }),
         Animated.spring(timezoneSheetTranslateY, {
           toValue: 0,
-          speed: 18,
-          bounciness: 9,
+          speed: 11,
+          bounciness: 8,
           useNativeDriver: true,
         }),
       ]).start();
@@ -749,13 +750,13 @@ export function SettingsScreen() {
       }),
       Animated.sequence([
         Animated.timing(timezoneSheetTranslateY, {
-          toValue: -8,
-          duration: 70,
+          toValue: -10,
+          duration: 110,
           useNativeDriver: true,
         }),
         Animated.timing(timezoneSheetTranslateY, {
           toValue: timezoneSheetHiddenY,
-          duration: 240,
+          duration: 320,
           useNativeDriver: true,
         }),
       ]),
@@ -1066,7 +1067,8 @@ export function SettingsScreen() {
               style={[
                 styles.sheetPanel,
                 {
-                  paddingBottom: insets.bottom + 14,
+                  paddingBottom: insets.bottom + 14 + TIMEZONE_SHEET_OVERDRAW,
+                  marginBottom: -TIMEZONE_SHEET_OVERDRAW,
                   transform: [{ translateY: timezoneSheetTranslateY }],
                 },
               ]}
