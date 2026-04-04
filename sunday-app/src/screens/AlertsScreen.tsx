@@ -70,19 +70,19 @@ function renderEmptyState() {
 function AlertRow({ item, onDeleteEntry }: AlertRowProps) {
   const closeBounceX = React.useRef(new Animated.Value(0)).current;
 
-  const handleSwipeableClose = React.useCallback(() => {
+  const handleSwipeableWillClose = React.useCallback(() => {
     closeBounceX.stopAnimation();
     closeBounceX.setValue(0);
     Animated.sequence([
       Animated.timing(closeBounceX, {
-        toValue: 8,
-        duration: 90,
+        toValue: 10,
+        duration: 70,
         useNativeDriver: true,
       }),
       Animated.spring(closeBounceX, {
         toValue: 0,
-        speed: 18,
-        bounciness: 8,
+        speed: 22,
+        bounciness: 7,
         useNativeDriver: true,
       }),
     ]).start();
@@ -133,7 +133,7 @@ function AlertRow({ item, onDeleteEntry }: AlertRowProps) {
           rightThreshold={30}
           containerStyle={styles.swipeableContainer}
           childrenContainerStyle={styles.swipeableChildren}
-          onSwipeableClose={handleSwipeableClose}
+          onSwipeableWillClose={handleSwipeableWillClose}
           renderRightActions={renderRightActions}
         >
           <Pressable style={styles.card}>
