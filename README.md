@@ -1,55 +1,98 @@
 # Sunday
 
-Sunday is a Gmail-to-calendar assistant that watches new emails, turns them into structured events, figures out travel and timing, writes those events to Google Calendar, and sends you reminder texts.
+Sunday is a personal assistant with two connected parts:
 
-It is intentionally strict in production:
-- it only processes emails that arrive after the worker starts
-- it fails visibly instead of inventing fake data
-- it writes Sunday-managed events into one configurable calendar while still reading your other calendars for context
+- a Python backend that watches Gmail, parses events, writes to Google Calendar, estimates travel, and sends reminders
+- an Expo app that lets you record voice notes, view alert history, and edit a safe subset of `config.env`
+
+The current mobile flow is:
+
+1. tap the center dot to start recording
+2. tap again to stop
+3. the phone uploads audio to your Mac backend
+4. the Mac transcribes it with a local Whisper model
+5. the Mac generates a five-word title with a local Qwen model
+6. the app adds the result to the Alerts page
 
 ## Table of Contents
 
 1. [How It Works](#how-it-works)
-2. [What You Need](#what-you-need)
-3. [Setup From Scratch](#setup-from-scratch)
-4. [Configuration Guide](#configuration-guide)
-5. [Running Sunday](#running-sunday)
-6. [Expo App (Local Development)](#expo-app-local-development)
-7. [How Travel and Calendar Writing Work](#how-travel-and-calendar-writing-work)
-8. [Optional API and Deployment](#optional-api-and-deployment)
-9. [Troubleshooting](#troubleshooting)
-10. [Development](#development)
-11. [To-Do](#to-do)
+2. [Project Layout](#project-layout)
+3. [What You Need](#what-you-need)
+4. [Setup From Scratch](#setup-from-scratch)
+5. [Configuration Guide](#configuration-guide)
+6. [Running Sunday](#running-sunday)
+7. [Expo App](#expo-app)
+8. [Recording and Transcription](#recording-and-transcription)
+9. [Settings Page](#settings-page)
+10. [API Endpoints](#api-endpoints)
+11. [Troubleshooting](#troubleshooting)
+12. [Development](#development)
+13. [To-Do](#to-do)
 
 ## How It Works
 
-At a high level, Sunday does this:
+Sunday currently has two major workflows.
 
-1. Poll Gmail for brand-new incoming messages.
-2. Parse each email with an LLM into structured event and action data.
-3. Infer missing details when reasonable, like event title, likely duration, and cleaner capitalization.
-4. Resolve vague venues into real places when possible, then estimate travel time with Google Maps.
-5. Decide where you are most likely leaving from using calendar context plus your configured home and work locations.
-6. Create or deduplicate a Google Calendar event.
-7. Send you a casual text summary right away.
-8. Send a separate leave-now text when it is actually time to head out.
-
-Important behavior:
-- Sunday ignores the unread backlog that already existed when it started.
-- Sunday only processes emails that arrive after startup.
-- Sunday writes its own managed events into one target calendar, but it still reads your other calendars for context and travel inference.
-
-Core flow:
+### Email to Calendar
 
 ```text
 new Gmail email
   -> LLM parsing
-  -> event inference + cleanup
-  -> venue resolution + travel estimate
-  -> Google Calendar event creation
-  -> summary text
+  -> event cleanup and inference
+  -> venue matching + travel estimate
+  -> Google Calendar write
+  -> reminder text now
   -> leave-now text later
 ```
+
+Key behavior:
+
+- Sunday only processes emails that arrive after the worker starts
+- Sunday writes managed events into one configurable calendar
+- Sunday still reads your other calendars for context and travel inference
+- vague places like chain restaurants are resolved toward your likely local origin when possible
+
+### Voice Notes in the App
+
+```text
+record on phone
+  -> upload audio to Mac backend
+  -> local Whisper transcription on Mac
+  -> local Qwen title generation on Mac
+  -> alerts list entry in app
+```
+
+Key behavior:
+
+- ultra-short accidental taps are ignored before upload
+- the newest voice-note entries appear at the top of Alerts
+- pending transcriptions show a loading row immediately
+- alerts can be swiped left to reveal a delete action
+
+## Project Layout
+
+Main directories:
+
+- [backend](/Users/aryan/Desktop/sunday/backend)
+  - Python engine, API, transcription, title generation, Gmail/calendar logic
+- [sunday-app](/Users/aryan/Desktop/sunday/sunday-app)
+  - Expo app
+- [tests](/Users/aryan/Desktop/sunday/tests)
+  - backend test suite
+- [models](/Users/aryan/Desktop/sunday/models)
+  - local model files, ignored by git
+
+Useful entrypoints:
+
+- [main.py](/Users/aryan/Desktop/sunday/main.py)
+  - starts the local Gmail polling worker
+- [server.py](/Users/aryan/Desktop/sunday/server.py)
+  - FastAPI app entrypoint
+- [backend/server.py](/Users/aryan/Desktop/sunday/backend/server.py)
+  - real API implementation
+- [sunday-app/App.tsx](/Users/aryan/Desktop/sunday/sunday-app/App.tsx)
+  - mobile app shell and tab navigation
 
 ## What You Need
 
@@ -57,18 +100,30 @@ Before setup, make sure you have:
 
 - Python 3.10+
 - [`uv`](https://docs.astral.sh/uv/)
-- A Google account
-- One LLM API key
-- One messaging channel
-  - Telegram is the easiest
+- Node.js 18+
+- Expo Go on your iPhone
+- a Google account
+- one LLM API key for email parsing
+- one outbound messaging channel
+  - Telegram is easiest
   - iMessage works on macOS only
-- A Google Cloud project with:
+- a Google Cloud project with:
   - Gmail API
   - Google Calendar API
-  - Distance Matrix API
   - Geocoding API
+  - Distance Matrix API
   - Places API
-- A Google Maps API key
+- a Google Maps API key
+- `ffmpeg` installed locally
+
+For local voice-note transcription and title generation, you also need local model files:
+
+- Whisper model:
+  - `models/transcription/ggml-large-v3-turbo-q5_0.bin`
+- Qwen title model:
+  - `models/text/qwen2.5-0.5b-instruct/`
+
+Those model files are intentionally ignored by git.
 
 ## Setup From Scratch
 
@@ -79,142 +134,59 @@ git clone https://github.com/aryan-cs/sunday.git
 cd sunday
 ```
 
-### 2. Install dependencies
+### 2. Install Python dependencies
 
 ```bash
-uv sync
+uv sync --extra dev
 ```
 
-### 3. Create your local config file
+### 3. Install Expo app dependencies
+
+```bash
+cd sunday-app
+npm install
+cd ..
+```
+
+### 4. Create your local config file
 
 ```bash
 cp config.env.example config.env
 ```
 
-You will fill this in over the next few sections.
-
-### 4. Create a Google Cloud project
-
-Go to [Google Cloud Console](https://console.cloud.google.com/) and create a new project for Sunday.
-
-Use that same project for every Google-related step below.
-
 ### 5. Configure Google OAuth for Gmail and Calendar
-
-Sunday uses OAuth for Gmail and Calendar access. This is separate from the Maps API key.
-
-#### 5.1 Configure the consent screen
 
 In Google Cloud:
 
-1. Open `Google Auth Platform`.
-   If your console still shows the older layout, use `APIs & Services -> OAuth consent screen`.
-2. Create the app configuration if prompted.
-3. Set:
-   - app name: `Sunday` or whatever you want
-   - support email: your email
-   - developer contact email: your email
-4. Choose `External`.
-5. Leave the app in `Testing`.
-6. Add your own Google account under `Test users`.
+1. create a project
+2. configure the OAuth consent screen
+3. add your own account as a test user
+4. enable:
+   - Gmail API
+   - Google Calendar API
+5. create a `Desktop app` OAuth client
+6. download the JSON and save it as:
+   - [credentials.json](/Users/aryan/Desktop/sunday/credentials.json)
 
-If you skip the test-user step, OAuth will fail with an `access_denied` or “app has not completed the Google verification process” error.
+Sunday will create [token.json](/Users/aryan/Desktop/sunday/token.json) on first successful auth.
 
-#### 5.2 Enable the Workspace APIs
+### 6. Configure Google Maps
 
-In `APIs & Services -> Library`, enable:
+Enable these APIs in the same Google Cloud project:
 
-- `Gmail API`
-- `Google Calendar API`
+- Geocoding API
+- Distance Matrix API
+- Places API
 
-Sunday requests these scopes:
-
-- `https://www.googleapis.com/auth/gmail.readonly`
-- `https://www.googleapis.com/auth/gmail.modify`
-- `https://www.googleapis.com/auth/calendar`
-
-#### 5.3 Create the OAuth client
-
-1. Go to `APIs & Services -> Credentials`
-2. Click `Create Credentials -> OAuth client ID`
-3. Choose `Desktop app`
-4. Download the JSON file
-5. Save it in the repo root as `credentials.json`
-
-That filename must match:
-
-```env
-GOOGLE_CREDENTIALS_FILE=credentials.json
-```
-
-Notes:
-- Use `Desktop app`, not `Web application`.
-- If you rotate OAuth credentials, replace `credentials.json`.
-- If Google auth gets into a weird state later, deleting `token.json` and re-running usually resets it cleanly.
-
-### 6. Enable Google Maps APIs and create the Maps key
-
-Sunday uses Maps for travel estimates, address resolution, and better matching of vague business names.
-
-#### 6.1 Enable billing
-
-Google Maps Platform requires billing on the project.
-
-#### 6.2 Enable the Maps APIs Sunday uses
-
-In `APIs & Services -> Library`, enable:
-
-- `Distance Matrix API`
-- `Geocoding API`
-- `Places API`
-
-#### 6.3 Create the Maps API key
-
-1. Go to `APIs & Services -> Credentials`
-2. Click `Create Credentials -> API key`
-3. Copy the key into:
+Then create an API key and put it into:
 
 ```env
 GOOGLE_MAPS_API_KEY=your_key_here
 ```
 
-#### 6.4 Set restrictions correctly
+### 7. Configure an LLM provider
 
-Open that API key and configure:
-
-1. `API restrictions`
-   - allow:
-     - `Distance Matrix API`
-     - `Geocoding API`
-     - `Places API`
-2. `Application restrictions`
-   - local development: `None` is easiest while testing
-   - real backend deployment: use something server-safe like `IP addresses`
-   - do not use `HTTP referrers`, `Android`, or `iOS` restrictions for this backend key
-
-If travel time works but address or venue lookup fails with `REQUEST_DENIED`, the usual issue is that only some of the Maps APIs were allowed on the key.
-
-### 7. Set up your LLM provider
-
-Sunday supports multiple providers, but you only need one.
-
-Supported providers:
-
-- Gemini
-- Cerebras
-- OpenRouter
-- Groq
-- Ollama
-- Together
-- Mistral
-- Hugging Face
-- Custom OpenAI-compatible endpoint
-
-#### Easiest option: Gemini
-
-1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
-2. Create an API key
-3. Put it in `config.env`:
+The easiest option is Gemini:
 
 ```env
 ACTIVE_LLM_PROVIDER=gemini
@@ -222,53 +194,16 @@ GEMINI_API_KEY=your_key_here
 GEMINI_MODEL=gemini-2.0-flash
 ```
 
-#### Common fallback: Cerebras
+### 8. Configure messaging
 
-If Gemini is rate-limiting you, Cerebras is a good alternative.
-
-```env
-ACTIVE_LLM_PROVIDER=cerebras
-CEREBRAS_API_KEY=your_key_here
-CEREBRAS_MODEL=llama3.1-8b
-LLM_REQUESTS_PER_MINUTE=25
-```
-
-### 8. Set up messaging
-
-Sunday needs one real outbound messaging channel.
-
-#### Option A: Telegram
-
-This is the easiest production-friendly option.
-
-1. Open Telegram
-2. Message [@BotFather](https://t.me/BotFather)
-3. Run `/newbot`
-4. Copy the bot token into:
+Telegram example:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token
-```
-
-5. Send your bot a message once
-6. Visit:
-
-```text
-https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
-```
-
-7. Find your `chat.id`
-8. Put it in:
-
-```env
 TELEGRAM_CHAT_ID=your_chat_id
 ```
 
-#### Option B: iMessage
-
-iMessage works only on macOS and uses AppleScript.
-
-Set:
+iMessage example:
 
 ```env
 IMESSAGE_ENABLED=true
@@ -276,96 +211,44 @@ IMESSAGE_RECIPIENT=+12175551234
 TEXT_EMAIL_LINKS=true
 ```
 
-`IMESSAGE_RECIPIENT` should be the exact phone number or email address you would manually type into the Messages app.
+### 9. Create the Expo app env file
 
-Examples:
-- `+12175551234`
-- `name@icloud.com`
+```bash
+cp sunday-app/.env.example sunday-app/.env
+```
 
-To find the right value:
-
-1. Open `Messages` on your Mac
-2. Start a new message
-3. In the `To:` field, type the address you normally use
-4. Use that exact value in `IMESSAGE_RECIPIENT`
-
-If you are unsure whether your phone number or email is iMessage-enabled:
-
-1. On iPhone, open `Settings -> Apps -> Messages -> Send & Receive`
-2. Look under `You Can Receive iMessages To And Reply From`
-3. Use one of those checked values
-
-### 9. Fill in `config.env`
-
-At minimum, a practical local config usually needs:
+Then edit [sunday-app/.env](/Users/aryan/Desktop/sunday/sunday-app/.env):
 
 ```env
-ACTIVE_LLM_PROVIDER=gemini
-GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.0-flash
+EXPO_PUBLIC_API_BASE_URL=http://YOUR_MAC_IP:8000
+EXPO_PUBLIC_API_TOKEN=
+```
 
-GOOGLE_CREDENTIALS_FILE=credentials.json
-GOOGLE_TOKEN_FILE=token.json
-GOOGLE_MAPS_API_KEY=your_maps_key_here
-TARGET_CALENDAR_ID=primary
+If you set `CRON_SECRET` in [config.env](/Users/aryan/Desktop/sunday/config.env), then `EXPO_PUBLIC_API_TOKEN` must match it.
 
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+### 10. Put the local models in place
 
-DEFAULT_HOME_LOCATION=Champaign, IL
-DEFAULT_HOME_LATITUDE=40.1164
-DEFAULT_HOME_LONGITUDE=-88.2434
-DEFAULT_WORK_LOCATION=
-DEFAULT_WORK_LATITUDE=
-DEFAULT_WORK_LONGITUDE=
-WORK_DAYS=mon,tue,wed,thu,fri
-WORKDAY_START_TIME=09:00
-WORKDAY_END_TIME=17:00
+Whisper transcription model:
 
-PREP_TIME_MINUTES=15
-ONLINE_PREP_MINUTES=5
-TRAVEL_TYPE=driving
-POLL_INTERVAL_SECONDS=10
-MAX_EMAILS_PER_CYCLE=3
-LLM_RETRY_ATTEMPTS=4
-LLM_RETRY_BASE_SECONDS=5
-TIMEZONE=America/Chicago
-LOG_LEVEL=INFO
+- [models/transcription/ggml-large-v3-turbo-q5_0.bin](/Users/aryan/Desktop/sunday/models/transcription/ggml-large-v3-turbo-q5_0.bin)
+
+Qwen title model:
+
+- [models/text/qwen2.5-0.5b-instruct](/Users/aryan/Desktop/sunday/models/text/qwen2.5-0.5b-instruct)
+
+To download Qwen:
+
+```bash
+mkdir -p models/text/qwen2.5-0.5b-instruct
+uv run hf download Qwen/Qwen2.5-0.5B-Instruct --local-dir models/text/qwen2.5-0.5b-instruct
 ```
 
 ## Configuration Guide
 
-This is what the most important settings do.
+Important non-secret config values:
 
-### Core Google settings
-
-- `GOOGLE_CREDENTIALS_FILE`
-  - local OAuth client JSON file
-- `GOOGLE_TOKEN_FILE`
-  - stored OAuth token after first successful login
-- `GOOGLE_MAPS_API_KEY`
-  - used for travel estimates, address resolution, and venue matching
 - `TARGET_CALENDAR_ID`
-  - where Sunday writes Sunday-managed events
-  - default: `primary`
-
-### Calendar behavior
-
-- Sunday still reads across your visible calendars for context.
-- `TARGET_CALENDAR_ID` changes only where Sunday writes and deduplicates its own events.
-
-If you want a dedicated calendar:
-
-1. Create a Google Calendar named something like `Sunday`
-2. Copy its calendar ID from Google Calendar settings
-3. Put that value into:
-
-```env
-TARGET_CALENDAR_ID=your_calendar_id_here
-```
-
-### Travel and location settings
-
+  - which calendar Sunday writes its managed events into
 - `DEFAULT_HOME_LOCATION`
 - `DEFAULT_HOME_LATITUDE`
 - `DEFAULT_HOME_LONGITUDE`
@@ -376,353 +259,235 @@ TARGET_CALENDAR_ID=your_calendar_id_here
 - `WORKDAY_START_TIME`
 - `WORKDAY_END_TIME`
 - `TRAVEL_TYPE`
-
-Allowed `TRAVEL_TYPE` values:
-- `driving`
-- `walking`
-- `bicycling`
-- `transit`
-
-### Messaging settings
-
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `IMESSAGE_ENABLED`
-- `IMESSAGE_RECIPIENT`
+  - one of:
+    - `driving`
+    - `walking`
+    - `bicycling`
+    - `transit`
+- `PREP_TIME_MINUTES`
+- `ONLINE_PREP_MINUTES`
+- `POLL_INTERVAL_SECONDS`
+- `MAX_EMAILS_PER_CYCLE`
+- `TIMEZONE`
 - `TEXT_EMAIL_LINKS`
 
-### LLM tuning settings
+Transcription-related config:
 
-- `MAX_EMAILS_PER_CYCLE`
-- `LLM_REQUESTS_PER_MINUTE`
-- `LLM_RETRY_ATTEMPTS`
-- `LLM_RETRY_BASE_SECONDS`
-
-Good conservative defaults:
-
-```env
-MAX_EMAILS_PER_CYCLE=3
-LLM_RETRY_ATTEMPTS=4
-LLM_RETRY_BASE_SECONDS=5
-```
+- `TRANSCRIPTION_MODEL_PATH`
+  - Whisper model path
+- `TRANSCRIPTION_LANGUAGE`
+- `TRANSCRIPTION_THREADS`
+- `TRANSCRIPT_TITLE_MODEL_PATH`
+  - local Qwen model folder
+- `TRANSCRIPT_TITLE_DEVICE`
+  - usually `auto`
+- `TRANSCRIPT_TITLE_MAX_NEW_TOKENS`
 
 ## Running Sunday
 
-### 1. Start the worker
+Usually you run two backend processes during local development:
+
+1. the API server
+2. the Gmail polling worker
+
+### Start the API server
 
 ```bash
+cd /Users/aryan/Desktop/sunday
+uv run uvicorn server:app --host 0.0.0.0 --port 8000
+```
+
+### Start the email worker
+
+In a second terminal:
+
+```bash
+cd /Users/aryan/Desktop/sunday
 uv run python main.py
 ```
 
 On first run:
 
-- a browser window should open
-- Google OAuth should appear
-- after approval, `token.json` will be created in the repo root
+- Google OAuth should open in the browser
+- after approval, [token.json](/Users/aryan/Desktop/sunday/token.json) will be created
 
-### 2. Send a real test email
-
-Send yourself a fresh email after the worker is already running.
-
-Good test examples:
-- `Meet me at the Illini Union today at 3:00 PM`
-- `Dinner at Chili's tonight at 9`
-- `Zoom tomorrow at 10 AM: https://...`
-
-Expected flow:
-
-1. Sunday sees the new Gmail message
-2. the LLM parses it into structured data
-3. Sunday infers missing pieces when reasonable
-4. Google Calendar event gets created
-5. you get a casual summary message
-6. later, you get a separate leave-now message if applicable
-
-### Useful commands
-
-Run the worker:
-
-```bash
-uv run python main.py
-```
-
-Run the FastAPI server:
-
-```bash
-uv run uvicorn server:app --reload --port 8000
-```
+### Useful backend commands
 
 Run tests:
 
 ```bash
-uv run pytest
+cd /Users/aryan/Desktop/sunday
+uv run --extra dev pytest -q
 ```
 
 Reset Google OAuth locally:
 
 ```bash
+cd /Users/aryan/Desktop/sunday
 rm -f token.json
 uv run python main.py
 ```
 
-## Expo App (Local Development)
+## Expo App
 
-Sunday includes a React Native app (`sunday-app/`) built with Expo Go. It shows today's upcoming events, live travel times by car, bus, and walking, and leave countdowns. It adapts to dark mode automatically.
-
-Important note:
-- the Expo app should usually be started in `tunnel` mode, not plain LAN mode
-- tunnel mode is much more reliable when Expo Go hangs on `Opening project...` or times out fetching the JS bundle
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- [Expo Go](https://expo.dev/go) installed on your iPhone (from the App Store)
-- Your Mac and iPhone on the same Wi-Fi network
-- The Sunday backend running on your Mac
-
-### 1. Install app dependencies
+### Start the app
 
 ```bash
-cd sunday-app
-npm install
-```
-
-### 2. Find your Mac's local IP address
-
-```bash
-ipconfig getifaddr en0
-```
-
-This returns something like `192.168.0.231`. You need this so the app can reach the backend running on your Mac.
-
-### 3. Create the app environment file
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-EXPO_PUBLIC_API_BASE_URL=http://192.168.0.231:8000
-EXPO_PUBLIC_API_TOKEN=your_cron_secret_here
-```
-
-- Replace the IP with what you got in step 2.
-- `EXPO_PUBLIC_API_TOKEN` must match the `CRON_SECRET` value in your `config.env`. Leave both blank if you have not set a secret.
-
-### 4. Start the Sunday backend
-
-In a terminal at the repo root, run uvicorn bound to all interfaces so your phone can reach it:
-
-```bash
-uv run uvicorn server:app --host 0.0.0.0 --port 8000
-```
-
-Do not use `--reload` together with `--host 0.0.0.0` in production; it is fine for local dev.
-
-### 5. Start the Expo dev server
-
-In a separate terminal inside `sunday-app/`:
-
-```bash
+cd /Users/aryan/Desktop/sunday/sunday-app
 npm run start
 ```
 
-A QR code will appear in the terminal.
+That uses Expo tunnel mode by default, which is the most reliable local setup for Expo Go.
 
-That script uses Expo `tunnel` mode by default.
+Then:
 
-If you specifically want LAN mode later, use:
+1. scan the QR code with your iPhone camera
+2. open it in Expo Go
+
+### Current app tabs
+
+- Settings
+  - editable safe config values from `config.env`
+- Record
+  - tap the center dot to start or stop recording
+- Alerts
+  - newest-first voice-note history
+  - swipe left to reveal delete
+
+### Expo app verification
 
 ```bash
-npm run start:lan
+cd /Users/aryan/Desktop/sunday/sunday-app
+npx tsc --noEmit
 ```
 
-### 6. Open the app on your iPhone
+## Recording and Transcription
 
-1. Open the camera app and point it at the QR code.
-2. Tap the Expo Go banner that appears.
-3. The app will bundle and launch.
+Recording currently works like this:
 
-The dashboard shows:
-- Today's date and the last-updated time
-- Each upcoming event with title, time, and location
-- Travel pills showing drive / transit / walk times
-- A leave-by countdown that turns urgent (red) when under 30 minutes away
+1. tap the center dot
+2. app records audio on the phone
+3. tap again to stop
+4. ultra-short near-empty recordings are ignored
+5. app uploads the audio file to `POST /api/transcribe`
+6. backend transcribes with local Whisper
+7. backend generates a five-word title with local Qwen
+8. app inserts or updates an Alerts entry
 
-### Live location
+Current backend response for transcription includes:
 
-The app sends your phone's GPS coordinates to the backend every time you move more than 50 metres. The backend uses this as the travel origin instead of your configured home or work address.
+- `text`
+- `summary`
 
-### Push notifications
+The Expo terminal logs both values during development.
 
-Push notifications are not supported in Expo Go. They require a standalone build. The app silently skips notification setup when running inside Expo Go.
+## Settings Page
 
-### Troubleshooting
+The Settings page can now read and write a safe subset of [config.env](/Users/aryan/Desktop/sunday/config.env) through the backend.
 
-**Network request failed**
+Current behavior:
 
-- Make sure your Mac IP in `.env` is correct and matches `ipconfig getifaddr en0`.
-- Make sure uvicorn was started with `--host 0.0.0.0`, not the default `127.0.0.1`.
-- Both devices must be on the same Wi-Fi network.
+- values load from `GET /api/settings`
+- saves go to `PUT /api/settings`
+- the backend writes them back into `config.env`
+- runtime config is updated immediately for normal non-secret settings
+- validation warnings and errors are returned after save
 
-**Events not showing**
+Intentional limitation:
 
-- Check that the Sunday worker (`uv run python main.py`) is running and has processed at least one email.
-- The `/api/events` endpoint only returns events from today onward.
+- secrets are not editable in the app
+- API keys, tokens, OAuth files, and similar sensitive values stay local and manual
 
-**QR code not scanning**
+## API Endpoints
 
-- Try pressing `w` in the Expo terminal to open a browser preview, which confirms the server is up.
-- Restart Expo with `npm run start:clear`.
-
-**Expo Go says "Opening project..." forever or times out**
-
-- Use `npm run start` so Expo starts in `tunnel` mode.
-- Make sure Expo Go is allowed to use Local Network on your iPhone.
-- If you previously started Expo in LAN mode, stop it fully and restart in tunnel mode.
-- The app backend URL in `sunday-app/.env` must still be real. Do not leave placeholder values like `http://192.168.x.x:8000`.
-
-## How Travel and Calendar Writing Work
-
-### Travel origin inference
-
-For in-person events, Sunday chooses the most likely departure point in this order:
-
-1. the latest scheduled calendar event location before the new event
-2. otherwise `DEFAULT_WORK_LOCATION` during configured work hours
-3. otherwise `DEFAULT_HOME_LOCATION`
-
-### Write calendar behavior
-
-Sunday writes its managed events only to `TARGET_CALENDAR_ID`.
-
-It still reads across your other calendars for:
-- context
-- conflict detection
-- travel-origin inference
-- leave alerts
-
-### Reminder behavior
-
-Sunday sends two kinds of outbound messages:
-
-- an immediate summary when the email is processed
-- a separate leave-now alert when it is actually time to go
-
-For casual events like lunch or dinner, Sunday avoids overly aggressive day-before reminders.
-
-## Optional API and Deployment
-
-### FastAPI endpoints
-
-If you run the server, you get:
+Current local API endpoints:
 
 - `GET /health`
 - `GET /api/status`
+- `GET /api/settings`
+- `PUT /api/settings`
 - `POST /api/process`
 - `POST /api/plan-day`
-
-### Optional Vercel deployment
-
-If you want to deploy the API server to Vercel:
-
-1. run locally first so `token.json` exists
-2. base64-encode both auth files:
-
-```bash
-python -c "import base64; print(base64.b64encode(open('token.json','rb').read()).decode())"
-python -c "import base64; print(base64.b64encode(open('credentials.json','rb').read()).decode())"
-```
-
-3. Set these Vercel environment variables:
-
-- `GOOGLE_TOKEN_JSON`
-- `GOOGLE_CREDENTIALS_JSON`
-- your LLM key
-- your Telegram or iMessage settings
-- `DEFAULT_HOME_LOCATION`
-- `DEFAULT_WORK_LOCATION`
-- `TARGET_CALENDAR_ID`
-- `GOOGLE_MAPS_API_KEY`
-- `CRON_SECRET`
-
-Deploy:
-
-```bash
-vercel deploy --prod
-```
-
-`vercel.json` already lives in the repo root.
+- `GET /api/events`
+- `POST /api/location`
+- `POST /api/register-push-token`
+- `POST /api/transcribe`
 
 ## Troubleshooting
 
-### Google OAuth is blocked
+### Expo Go opens but the app cannot reach the backend
 
 Check:
 
-- your app is in `Testing`
-- your Google account is added under `Test users`
-- `credentials.json` is a `Desktop app` OAuth client
+- [sunday-app/.env](/Users/aryan/Desktop/sunday/sunday-app/.env) has the correct Mac IP
+- backend is running with `--host 0.0.0.0`
+- phone and Mac can reach each other
 
-### Travel says `REQUEST_DENIED`
+### Expo Go gets stuck on "Opening project..."
 
-Check:
+Use tunnel mode:
 
-- billing is enabled on the Google Cloud project
-- `GOOGLE_MAPS_API_KEY` is set
-- `Distance Matrix API`, `Geocoding API`, and `Places API` are all enabled
-- your Maps key restrictions allow those APIs
+```bash
+cd /Users/aryan/Desktop/sunday/sunday-app
+npm run start
+```
 
-### Sunday is not sending any texts
-
-Check:
-
-- Telegram bot token is valid and `TELEGRAM_CHAT_ID` is correct
-- or iMessage is properly working from the same Mac
-- `IMESSAGE_RECIPIENT` is exactly the address you can manually message
-
-### Sunday is creating events in the wrong calendar
+### Recording works but transcription fails
 
 Check:
 
-- `TARGET_CALENDAR_ID` in `config.env`
-- that the calendar ID is the real Google Calendar ID, not just the display name
+- backend is running
+- `ffmpeg` is installed
+- the Whisper model exists at `TRANSCRIPTION_MODEL_PATH`
 
-### In-person venue matching is bad
+### Title generation falls back to simple summaries
 
 Check:
 
-- `Places API` is enabled
-- `Geocoding API` is enabled
-- your home/work locations are configured correctly
+- the Qwen model exists at `TRANSCRIPT_TITLE_MODEL_PATH`
+- the backend was restarted after model/config changes
 
-### The app does nothing on old unread emails
+### Sunday does nothing with old unread emails
 
 That is expected.
 
-Sunday intentionally ignores the unread backlog that already existed before startup.
+Sunday intentionally ignores the backlog that already existed before the worker started.
+
+### Calendar events are written to the wrong calendar
+
+Check:
+
+- `TARGET_CALENDAR_ID`
+- or update it from the Settings page
 
 ## Development
 
-Project notes:
-
-- secrets stay local in `config.env`, `credentials.json`, and `token.json`
-- runtime state goes in `.state/`
-- tests live in `tests/`
-- the repo is intended to be run from the project root
-
-Recommended verification before pushing:
+Recommended checks before pushing:
 
 ```bash
-uv run pytest
-uv run python -m py_compile $(rg --files -g '*.py')
+cd /Users/aryan/Desktop/sunday
+uv run --extra dev pytest -q
 ```
+
+```bash
+cd /Users/aryan/Desktop/sunday/sunday-app
+npx tsc --noEmit
+```
+
+Important local-only files:
+
+- [config.env](/Users/aryan/Desktop/sunday/config.env)
+- [credentials.json](/Users/aryan/Desktop/sunday/credentials.json)
+- [token.json](/Users/aryan/Desktop/sunday/token.json)
+- [models](/Users/aryan/Desktop/sunday/models)
+
+These should not be pushed.
 
 ## To-Do
 
-- [ ] Emoji-first message formatting so reminders can use icons instead of labels like `location`, `time`, and `leave by`
-- [ ] Optional phone-location ping support that feels invisible and production-safe
-- [ ] Better reply-based workflows so a future version could react to user responses, not just send outbound reminders
-- [ ] Richer calendar repair/update tools for old Sunday-managed events after formatting or reminder-policy changes
+- [ ] Expand the Settings page with more config groups and nicer grouped controls
+- [ ] Show full transcript details when tapping an alert entry
+- [ ] Add richer actions on alert rows beyond delete
+- [ ] Emoji-first reminder formatting in the messaging layer
+- [ ] Optional phone-location support that feels invisible and production-safe
+- [ ] Better voice-note post-processing beyond five-word titles
