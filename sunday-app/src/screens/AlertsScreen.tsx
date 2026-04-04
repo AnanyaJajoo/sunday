@@ -67,15 +67,29 @@ export function AlertsScreen({ entries, onDeleteEntry }: AlertsScreenProps) {
   const headerTopInset = insets.top + 8;
 
   const renderRightActions = React.useCallback(
-    (item: AlertEntry, progress: Animated.AnimatedInterpolation<number>) => {
+    (
+      item: AlertEntry,
+      progress: Animated.AnimatedInterpolation<number>,
+      dragX: Animated.AnimatedInterpolation<number>,
+    ) => {
       const opacity = progress.interpolate({
         inputRange: [0, 1],
         outputRange: [0.4, 1],
         extrapolate: "clamp",
       });
+      const scale = progress.interpolate({
+        inputRange: [0, 0.8, 1, 1.18],
+        outputRange: [0.86, 0.95, 1.06, 1],
+        extrapolate: "clamp",
+      });
+      const translateX = dragX.interpolate({
+        inputRange: [-156, -96, 0],
+        outputRange: [-8, 0, 22],
+        extrapolate: "clamp",
+      });
 
       return (
-        <Animated.View style={[styles.deleteActionWrap, { opacity }]}>
+        <Animated.View style={[styles.deleteActionWrap, { opacity, transform: [{ translateX }, { scale }] }]}>
           <Pressable
             onPress={() => onDeleteEntry?.(item.id)}
             style={styles.deleteAction}
@@ -89,12 +103,13 @@ export function AlertsScreen({ entries, onDeleteEntry }: AlertsScreenProps) {
   );
 
   return (
-    <SafeAreaView edges={["left", "right"]} style={styles.safe}>
+    <SafeAreaView edges={[]} style={styles.safe}>
       <StatusBar barStyle="light-content" />
       <FlatList
         data={entries}
         keyExtractor={(item) => item.id}
         contentContainerStyle={entries.length ? styles.listContent : styles.emptyContent}
+        removeClippedSubviews={false}
         scrollEnabled
         bounces
         alwaysBounceVertical
@@ -108,33 +123,38 @@ export function AlertsScreen({ entries, onDeleteEntry }: AlertsScreenProps) {
         )}
         ListEmptyComponent={renderEmptyState}
         renderItem={({ item }) => (
-          <Swipeable
-            friction={1.8}
-            overshootRight={false}
-            rightThreshold={36}
-            renderRightActions={(progress) => renderRightActions(item, progress)}
-          >
-            <Pressable style={styles.card}>
-              <View style={styles.cardMain}>
-                {item.status === "pending" ? (
-                  <ActivityIndicator
-                    size="small"
-                    color="#ffffff"
-                    style={styles.loadingSpinner}
-                  />
-                ) : null}
-                <View style={styles.cardText}>
-                  <Text style={styles.summary}>
-                    {item.status === "pending" ? "Transcription loading..." : item.summary}
-                  </Text>
-                  {item.status === "failed" && item.transcript ? (
-                    <Text style={styles.failureBody}>{item.transcript}</Text>
+          <View style={styles.rowWrap}>
+            <Swipeable
+              friction={1.25}
+              overshootRight
+              overshootFriction={6}
+              rightThreshold={30}
+              containerStyle={styles.swipeableContainer}
+              childrenContainerStyle={styles.swipeableChildren}
+              renderRightActions={(progress, dragX) => renderRightActions(item, progress, dragX)}
+            >
+              <Pressable style={styles.card}>
+                <View style={styles.cardMain}>
+                  {item.status === "pending" ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#ffffff"
+                      style={styles.loadingSpinner}
+                    />
                   ) : null}
+                  <View style={styles.cardText}>
+                    <Text style={styles.summary}>
+                      {item.status === "pending" ? "Transcription loading..." : item.summary}
+                    </Text>
+                    {item.status === "failed" && item.transcript ? (
+                      <Text style={styles.failureBody}>{item.transcript}</Text>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.timestamp}>{formatTimestamp(item.createdAt)}</Text>
-            </Pressable>
-          </Swipeable>
+                <Text style={styles.timestamp}>{formatTimestamp(item.createdAt)}</Text>
+              </Pressable>
+            </Swipeable>
+          </View>
         )}
       />
     </SafeAreaView>
@@ -148,15 +168,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
-    paddingHorizontal: 18,
     paddingBottom: 120,
   },
   emptyContent: {
     flexGrow: 1,
-    paddingHorizontal: 18,
     paddingBottom: 120,
   },
   header: {
+    paddingHorizontal: 18,
     paddingBottom: 18,
   },
   headerTitle: {
@@ -168,6 +187,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 18,
   },
   emptyTitle: {
     color: "#ffffff",
@@ -227,9 +247,20 @@ const styles = StyleSheet.create({
   rowSeparator: {
     height: 12,
   },
+  rowWrap: {
+    paddingHorizontal: 18,
+    overflow: "visible",
+  },
+  swipeableContainer: {
+    overflow: "visible",
+  },
+  swipeableChildren: {
+    overflow: "visible",
+  },
   deleteActionWrap: {
     width: 88,
     paddingLeft: 10,
+    justifyContent: "center",
   },
   deleteAction: {
     flex: 1,
