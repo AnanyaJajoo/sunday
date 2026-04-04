@@ -149,13 +149,6 @@ export function LocationPickerModal({
           </Pressable>
         </View>
 
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsTitle}>Tap the map or drag the pin.</Text>
-          <Text style={styles.instructionsText}>
-            Sunday will save the point and fill the location text automatically.
-          </Text>
-        </View>
-
         <View style={styles.mapShell}>
           <MapView
             style={styles.map}
@@ -171,9 +164,6 @@ export function LocationPickerModal({
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.coordinateText}>
-            {selectedCoordinate.latitude.toFixed(6)}, {selectedCoordinate.longitude.toFixed(6)}
-          </Text>
           <View style={styles.resolvedRow}>
             {isResolving ? <ActivityIndicator color="#ffffff" size="small" /> : null}
             <Text style={styles.resolvedText}>
@@ -231,22 +221,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: FONTS.semibold,
   },
-  instructions: {
-    paddingHorizontal: 18,
-    paddingBottom: 14,
-    gap: 6,
-  },
-  instructionsTitle: {
-    color: TEXT,
-    fontSize: 16,
-    fontFamily: FONTS.medium,
-  },
-  instructionsText: {
-    color: MUTED,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: FONTS.regular,
-  },
   mapShell: {
     flex: 1,
     marginHorizontal: 18,
@@ -261,12 +235,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 18,
     paddingVertical: 16,
-    gap: 10,
-  },
-  coordinateText: {
-    color: MUTED,
-    fontSize: 13,
-    fontFamily: FONTS.medium,
   },
   resolvedRow: {
     minHeight: 44,
