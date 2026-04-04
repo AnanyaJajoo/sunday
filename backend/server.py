@@ -21,6 +21,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from .app_settings import get_app_settings, update_app_settings
 from .calendar_manager import CalendarManager
 from .config import Config
 from .day_planner import format_schedule, plan_day
@@ -100,6 +101,16 @@ class PushTokenRequest(BaseModel):
 class TranscriptionResponse(BaseModel):
     text: str
     summary: str
+
+
+class AppSettingsUpdateRequest(BaseModel):
+    settings: dict[str, str | bool | int | float | None]
+
+
+class AppSettingsResponse(BaseModel):
+    settings: dict[str, str | bool]
+    errors: list[str]
+    warnings: list[str]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -187,6 +198,33 @@ async def status():
         "imessage_enabled": Config.imessage_enabled,
         "maps_configured": bool(Config.google_maps_key),
         "expo_push_enabled": Config.expo_push_enabled,
+        "errors": report["errors"],
+        "warnings": report["warnings"],
+    }
+
+
+@app.get("/api/settings", response_model=AppSettingsResponse, dependencies=[Depends(_require_auth)])
+async def get_settings():
+    """Return the safe, non-secret settings editable from the Expo app."""
+    report = Config.validation_report()
+    return {
+        "settings": get_app_settings(),
+        "errors": report["errors"],
+        "warnings": report["warnings"],
+    }
+
+
+@app.put("/api/settings", response_model=AppSettingsResponse, dependencies=[Depends(_require_auth)])
+async def update_settings(body: AppSettingsUpdateRequest):
+    """Persist safe settings back to config.env and update runtime config."""
+    try:
+        settings = update_app_settings(body.settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    report = Config.validation_report()
+    return {
+        "settings": settings,
         "errors": report["errors"],
         "warnings": report["warnings"],
     }
