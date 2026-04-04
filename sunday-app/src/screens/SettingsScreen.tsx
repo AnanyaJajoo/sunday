@@ -402,6 +402,7 @@ export function SettingsScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const scrollViewRef = React.useRef<ScrollView>(null);
   const [settings, setSettings] = React.useState<AppSettingsValues>(getInitialSettingsState);
+  const [settingsMetadata, setSettingsMetadata] = React.useState<Record<string, string>>({});
   const [isPhoneLocationEnabled, setIsPhoneLocationEnabled] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -435,6 +436,7 @@ export function SettingsScreen() {
         hasLoadedSettingsRef.current = true;
         return nextSettings;
       });
+      setSettingsMetadata(response.metadata ?? {});
       setWarnings(response.warnings);
       setErrors(response.errors);
       setIsLoading(false);
@@ -665,6 +667,7 @@ export function SettingsScreen() {
           const nextSettings = { ...snapshot, ...response.settings };
           lastSavedSettingsRef.current = serializeSettings(nextSettings);
           setSettings(nextSettings);
+          setSettingsMetadata(response.metadata ?? {});
           setWarnings(response.warnings);
           setErrors(response.errors);
           setStatusMessage("Saved");
@@ -696,6 +699,10 @@ export function SettingsScreen() {
     () => formatTimeZoneLabel(String(settings.TIMEZONE ?? "") || "America/Chicago"),
     [settings.TIMEZONE],
   );
+  const targetCalendarDisplayValue =
+    settingsMetadata.target_calendar_label?.trim() ||
+    String(settings.TARGET_CALENDAR_ID ?? "").trim() ||
+    "Primary";
   const headerTopInset = insets.top + 8;
   const timezoneSheetHiddenY = Math.max(windowHeight, 420);
 
@@ -875,6 +882,7 @@ export function SettingsScreen() {
                         key={field.key}
                         style={[
                           (field.kind === "boolean" ||
+                            field.key === "TARGET_CALENDAR_ID" ||
                             isNumericPickerKey(field.key) ||
                             isTimeSettingKey(field.key) ||
                             field.key === "TIMEZONE") &&
@@ -887,6 +895,7 @@ export function SettingsScreen() {
                           style={[
                             styles.fieldHeader,
                             (field.kind === "boolean" ||
+                              field.key === "TARGET_CALENDAR_ID" ||
                               isNumericPickerKey(field.key) ||
                               isTimeSettingKey(field.key) ||
                               field.key === "TIMEZONE") &&
@@ -975,6 +984,12 @@ export function SettingsScreen() {
                                 </Pressable>
                               );
                             })}
+                          </View>
+                        ) : field.key === "TARGET_CALENDAR_ID" ? (
+                          <View style={styles.selectTrigger}>
+                            <Text numberOfLines={1} style={styles.selectTriggerText}>
+                              {targetCalendarDisplayValue}
+                            </Text>
                           </View>
                         ) : field.key === "TIMEZONE" ? (
                           <Pressable onPress={openTimezonePicker} style={styles.selectTrigger}>

@@ -112,6 +112,7 @@ class AppSettingsResponse(BaseModel):
     settings: dict[str, str | bool]
     errors: list[str]
     warnings: list[str]
+    metadata: dict[str, str]
 
 
 class ReverseGeocodeRequest(BaseModel):
@@ -171,6 +172,24 @@ async def _reverse_geocode_label(latitude: float, longitude: float) -> str:
             return TravelEstimator._clean_formatted_address(formatted)
 
     return fallback
+
+
+def _resolve_target_calendar_label() -> str:
+    """Return a friendly display name for the configured write calendar."""
+    target_calendar_id = Config.target_calendar_id.strip() or "primary"
+    if target_calendar_id == "primary":
+        return "Primary"
+
+    try:
+        calendar = CalendarManager().service.calendars().get(
+            calendarId=target_calendar_id,
+        ).execute()
+    except Exception as exc:
+        log.warning("Failed to resolve target calendar label for %s: %s", target_calendar_id, exc)
+        return target_calendar_id
+
+    summary = str(calendar.get("summary") or "").strip()
+    return summary or target_calendar_id
 
 
 def _map_calendar_event(item: dict) -> dict:
@@ -256,6 +275,9 @@ async def get_settings():
         "settings": get_app_settings(),
         "errors": report["errors"],
         "warnings": report["warnings"],
+        "metadata": {
+            "target_calendar_label": _resolve_target_calendar_label(),
+        },
     }
 
 
@@ -272,6 +294,9 @@ async def update_settings(body: AppSettingsUpdateRequest):
         "settings": settings,
         "errors": report["errors"],
         "warnings": report["warnings"],
+        "metadata": {
+            "target_calendar_label": _resolve_target_calendar_label(),
+        },
     }
 
 

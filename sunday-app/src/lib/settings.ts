@@ -9,6 +9,7 @@ export type AppSettingsResponse = {
   settings: AppSettingsValues;
   errors: string[];
   warnings: string[];
+  metadata: Record<string, string>;
 };
 
 export type ReverseGeocodeResponse = {
@@ -40,6 +41,7 @@ async function parseResponse(response: Response): Promise<AppSettingsResponse> {
     settings: payload.settings ?? {},
     errors: payload.errors ?? [],
     warnings: payload.warnings ?? [],
+    metadata: payload.metadata ?? {},
   };
 }
 
