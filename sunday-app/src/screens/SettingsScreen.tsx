@@ -15,7 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   LocationPickerModal,
   SelectedLocation,
@@ -379,6 +379,7 @@ function formatTimeForBackend(date: Date) {
 }
 
 export function SettingsScreen() {
+  const insets = useSafeAreaInsets();
   const [settings, setSettings] = React.useState<AppSettingsValues>(getInitialSettingsState);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -566,6 +567,7 @@ export function SettingsScreen() {
     [activeLocationGroupId],
   );
   const timeZoneOptions = React.useMemo(() => getTimeZoneOptions(), []);
+  const headerTopInset = insets.top + 8;
 
   const activePickerCoordinate = React.useMemo(() => {
     if (!activeLocationGroup) {
@@ -606,7 +608,7 @@ export function SettingsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: headerTopInset }]}>
           <Text style={styles.title}>Settings</Text>
         </View>
 
@@ -854,12 +856,13 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingTop: 24,
+    paddingTop: 0,
     paddingBottom: 120,
     gap: 18,
   },
   header: {
     gap: 8,
+    paddingBottom: 8,
   },
   title: {
     color: "#ffffff",
