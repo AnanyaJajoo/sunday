@@ -276,13 +276,6 @@ function parseCoordinate(rawValue: string | boolean | undefined) {
   return parsed;
 }
 
-function formatCoordinateLabel(latitude: number | null, longitude: number | null) {
-  if (latitude === null || longitude === null) {
-    return "No point selected yet.";
-  }
-  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-}
-
 function defaultPickerCoordinate(settings: AppSettingsValues) {
   for (const group of LOCATION_SETTING_GROUPS) {
     const latitude = parseCoordinate(settings[group.latitudeKey]);
@@ -623,48 +616,34 @@ export function SettingsScreen() {
                 {section.title === "Locations"
                   ? LOCATION_SETTING_GROUPS.map((group, index) => {
                         const locationValue = String(settings[group.locationKey] ?? "");
-                        const latitude = parseCoordinate(settings[group.latitudeKey]);
-                        const longitude = parseCoordinate(settings[group.longitudeKey]);
 
                         return (
                           <View
                             key={group.id}
                             style={[
                               styles.fieldRow,
+                              styles.fieldRowInline,
                               index !== LOCATION_SETTING_GROUPS.length - 1 && styles.fieldRowBorder,
                             ]}
                           >
-                            <View style={styles.fieldHeader}>
+                            <View style={[styles.fieldHeader, styles.fieldHeaderInline, styles.locationFieldHeader]}>
                               <Text style={styles.fieldLabel}>{group.title}</Text>
-                              <Text style={styles.fieldDescription}>{group.description}</Text>
                             </View>
 
-                            <TextInput
-                              autoCapitalize="words"
-                              autoCorrect={false}
-                              onChangeText={(value) => handleTextChange(group.locationKey, value)}
-                              placeholder={group.placeholder}
-                              placeholderTextColor="#6f6f6f"
-                              style={styles.input}
-                              value={locationValue}
-                            />
-
-                            <View style={styles.locationRow}>
-                              <View style={styles.locationMeta}>
-                                <Text style={styles.locationMetaLabel}>Selected point</Text>
-                                <Text style={styles.locationMetaValue}>
-                                  {formatCoordinateLabel(latitude, longitude)}
-                                </Text>
-                              </View>
-                              <Pressable
-                                onPress={() => setActiveLocationGroupId(group.id)}
-                                style={styles.locationButton}
+                            <Pressable
+                              onPress={() => setActiveLocationGroupId(group.id)}
+                              style={styles.locationValueButton}
+                            >
+                              <Text
+                                numberOfLines={2}
+                                style={[
+                                  styles.locationValueText,
+                                  !locationValue && styles.locationValuePlaceholder,
+                                ]}
                               >
-                                <Text style={styles.locationButtonText}>
-                                  {latitude !== null && longitude !== null ? "Adjust on map" : "Pick on map"}
-                                </Text>
-                              </Pressable>
-                            </View>
+                                {locationValue || group.placeholder}
+                              </Text>
+                            </Pressable>
                           </View>
                         );
                     })
@@ -974,32 +953,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  locationMeta: {
+  locationFieldHeader: {
+    flex: 0,
+    width: 72,
+    paddingRight: 12,
+  },
+  locationValueButton: {
     flex: 1,
-    gap: 4,
+    minHeight: 46,
+    borderRadius: 14,
+    backgroundColor: PANEL_ALT,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: "center",
   },
-  locationMetaLabel: {
-    color: MUTED,
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-  },
-  locationMetaValue: {
+  locationValueText: {
     color: "#ffffff",
     fontFamily: FONTS.regular,
-    fontSize: 14,
+    fontSize: 15,
+    textAlign: "right",
   },
-  locationButton: {
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-  },
-  locationButtonText: {
-    color: BACKGROUND,
-    fontFamily: FONTS.semibold,
-    fontSize: 14,
+  locationValuePlaceholder: {
+    color: "#6f6f6f",
   },
   nativePickerField: {
     borderRadius: 14,
