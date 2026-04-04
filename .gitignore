@@ -67,6 +67,7 @@ sunday-app/web-build/
 sunday-app/expo-env.d.ts
 sunday-app/ios/
 sunday-app/android/
+sunday-app/assets/models/
 *.tsbuildinfo
 
 # ─── Xcode local files ────────────────────────────────────────
