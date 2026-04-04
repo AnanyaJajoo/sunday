@@ -5,7 +5,6 @@ import DateTimePicker, {
 import { Picker } from "@react-native-picker/picker";
 import {
   ActivityIndicator,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -16,7 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   LocationPickerModal,
   SelectedLocation,
@@ -120,12 +119,6 @@ type LocationSettingGroup = {
   latitudeKey: string;
   longitudeKey: string;
   placeholder: string;
-};
-
-type WheelPickerField = {
-  key: string;
-  title: string;
-  options: string[];
 };
 
 const LOCATION_SETTING_GROUPS: LocationSettingGroup[] = [
@@ -393,7 +386,6 @@ function formatTimeForBackend(date: Date) {
 }
 
 export function SettingsScreen() {
-  const insets = useSafeAreaInsets();
   const [settings, setSettings] = React.useState<AppSettingsValues>(getInitialSettingsState);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -402,8 +394,6 @@ export function SettingsScreen() {
   const [warnings, setWarnings] = React.useState<string[]>([]);
   const [errors, setErrors] = React.useState<string[]>([]);
   const [activeLocationGroupId, setActiveLocationGroupId] = React.useState<LocationSettingGroup["id"] | null>(null);
-  const [activeWheelPickerField, setActiveWheelPickerField] = React.useState<WheelPickerField | null>(null);
-  const [pendingWheelValue, setPendingWheelValue] = React.useState("");
   const lastSavedSettingsRef = React.useRef("");
   const hasLoadedSettingsRef = React.useRef(false);
   const saveSequenceRef = React.useRef(0);
@@ -520,26 +510,6 @@ export function SettingsScreen() {
     },
     [],
   );
-
-  const openWheelPicker = React.useCallback(
-    (field: WheelPickerField, initialValue: string) => {
-      setActiveWheelPickerField(field);
-      setPendingWheelValue(initialValue || field.options[0] || "");
-    },
-    [],
-  );
-
-  const closeWheelPicker = React.useCallback(() => {
-    setActiveWheelPickerField(null);
-  }, []);
-
-  const confirmWheelPicker = React.useCallback(() => {
-    if (!activeWheelPickerField) {
-      return;
-    }
-    handleTextChange(activeWheelPickerField.key, pendingWheelValue || activeWheelPickerField.options[0] || "");
-    setActiveWheelPickerField(null);
-  }, [activeWheelPickerField, handleTextChange, pendingWheelValue]);
 
   React.useEffect(() => {
     if (isLoading || !hasLoadedSettingsRef.current) {
@@ -710,8 +680,7 @@ export function SettingsScreen() {
                           styles.fieldRow,
                           (field.kind === "boolean" ||
                             isNumericPickerKey(field.key) ||
-                            isTimeSettingKey(field.key) ||
-                            field.key === "TIMEZONE") &&
+                            isTimeSettingKey(field.key)) &&
                             styles.fieldRowInline,
                           index !== section.fields.length - 1 && styles.fieldRowBorder,
                         ]}
@@ -721,8 +690,7 @@ export function SettingsScreen() {
                             styles.fieldHeader,
                             (field.kind === "boolean" ||
                               isNumericPickerKey(field.key) ||
-                              isTimeSettingKey(field.key) ||
-                              field.key === "TIMEZONE") &&
+                              isTimeSettingKey(field.key)) &&
                               styles.fieldHeaderInline,
                           ]}
                         >
@@ -811,46 +779,44 @@ export function SettingsScreen() {
                             })}
                           </View>
                         ) : field.key === "TIMEZONE" ? (
-                          <Pressable
-                            onPress={() =>
-                              openWheelPicker(
-                                {
-                                  key: field.key,
-                                  title: field.label,
-                                  options: timeZoneOptions,
-                                },
-                                stringValue || "America/Chicago",
-                              )
-                            }
-                            style={styles.selectTrigger}
-                          >
-                            <Text numberOfLines={1} style={styles.selectTriggerText}>
-                              {stringValue || field.placeholder || "Select"}
-                            </Text>
-                            <Text style={styles.selectTriggerChevron}>▾</Text>
-                          </Pressable>
+                          <View style={styles.nativePickerField}>
+                            <Picker
+                              selectedValue={stringValue || "America/Chicago"}
+                              onValueChange={(value) => handleTextChange(field.key, String(value))}
+                              itemStyle={styles.nativePickerItem}
+                              style={styles.timezonePicker}
+                            >
+                              {timeZoneOptions.map((option) => (
+                                <Picker.Item
+                                  key={option}
+                                  label={option}
+                                  value={option}
+                                  color="#ffffff"
+                                />
+                              ))}
+                            </Picker>
+                          </View>
                         ) : isNumericPickerKey(field.key) ? (
                           (() => {
                             const numericKey = field.key;
                             return (
-                              <Pressable
-                                onPress={() =>
-                                  openWheelPicker(
-                                    {
-                                      key: numericKey,
-                                      title: field.label,
-                                      options: getNumericPickerOptions(numericKey, rawValue),
-                                    },
-                                    stringValue,
-                                  )
-                                }
-                                style={[styles.selectTrigger, styles.numericSelectTrigger]}
-                              >
-                                <Text numberOfLines={1} style={styles.numericSelectTriggerText}>
-                                  {stringValue || "0"}
-                                </Text>
-                                <Text style={styles.selectTriggerChevron}>▾</Text>
-                              </Pressable>
+                              <View style={[styles.nativePickerField, styles.numericPickerField]}>
+                                <Picker
+                                  selectedValue={stringValue || getNumericPickerOptions(numericKey, rawValue)[0]}
+                                  onValueChange={(value) => handleTextChange(numericKey, String(value))}
+                                  itemStyle={styles.nativePickerItem}
+                                  style={styles.numericPicker}
+                                >
+                                  {getNumericPickerOptions(numericKey, rawValue).map((option) => (
+                                    <Picker.Item
+                                      key={option}
+                                      label={option}
+                                      value={option}
+                                      color="#ffffff"
+                                    />
+                                  ))}
+                                </Picker>
+                              </View>
                             );
                           })()
                         ) : (
@@ -896,47 +862,6 @@ export function SettingsScreen() {
           onClose={() => setActiveLocationGroupId(null)}
           onConfirm={(selection) => handleLocationSelected(activeLocationGroup, selection)}
         />
-      ) : null}
-
-      {activeWheelPickerField ? (
-        <Modal
-          transparent
-          animationType="slide"
-          visible
-          onRequestClose={closeWheelPicker}
-        >
-          <View style={styles.sheetOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeWheelPicker} />
-            <View style={[styles.sheetPanel, { paddingBottom: insets.bottom + 14 }]}>
-              <View style={styles.sheetHeader}>
-                <Pressable hitSlop={10} onPress={closeWheelPicker}>
-                  <Text style={styles.sheetActionText}>Cancel</Text>
-                </Pressable>
-                <Text style={styles.sheetTitle}>{activeWheelPickerField.title}</Text>
-                <Pressable hitSlop={10} onPress={confirmWheelPicker}>
-                  <Text style={styles.sheetActionText}>Done</Text>
-                </Pressable>
-              </View>
-              <View style={styles.sheetPickerWrap}>
-                <Picker
-                  selectedValue={pendingWheelValue}
-                  onValueChange={(value) => setPendingWheelValue(String(value))}
-                  itemStyle={styles.sheetPickerItem}
-                  style={styles.sheetPicker}
-                >
-                  {activeWheelPickerField.options.map((option) => (
-                    <Picker.Item
-                      key={option}
-                      label={option}
-                      value={option}
-                      color="#ffffff"
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-          </View>
-        </Modal>
       ) : null}
     </SafeAreaView>
   );
@@ -1076,40 +1001,28 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: 14,
   },
-  selectTrigger: {
-    minHeight: 44,
-    maxWidth: 176,
+  nativePickerField: {
     borderRadius: 14,
-    paddingHorizontal: 14,
     backgroundColor: PANEL_ALT,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+    overflow: "hidden",
   },
-  selectTriggerText: {
-    flex: 1,
+  timezonePicker: {
+    color: "#ffffff",
+    height: 180,
+    marginHorizontal: Platform.OS === "ios" ? -8 : 0,
+  },
+  numericPickerField: {
+    width: 110,
+  },
+  numericPicker: {
+    color: "#ffffff",
+    height: 108,
+    marginHorizontal: Platform.OS === "ios" ? -8 : 0,
+  },
+  nativePickerItem: {
     color: "#ffffff",
     fontFamily: FONTS.regular,
-    fontSize: 15,
-    textAlign: "right",
-  },
-  selectTriggerChevron: {
-    color: MUTED,
-    fontFamily: FONTS.semibold,
-    fontSize: 16,
-  },
-  numericSelectTrigger: {
-    minWidth: 88,
-    maxWidth: 108,
-    justifyContent: "flex-end",
-  },
-  numericSelectTriggerText: {
-    flex: 1,
-    color: "#ffffff",
-    fontFamily: FONTS.regular,
-    fontSize: 15,
-    textAlign: "right",
+    fontSize: 20,
   },
   choiceRow: {
     flexDirection: "row",
@@ -1179,47 +1092,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 13,
     lineHeight: 18,
-  },
-  sheetOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-  },
-  sheetPanel: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    backgroundColor: "#1d1d1f",
-    overflow: "hidden",
-  },
-  sheetHeader: {
-    minHeight: 52,
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
-  },
-  sheetTitle: {
-    color: "#ffffff",
-    fontFamily: FONTS.semibold,
-    fontSize: 16,
-  },
-  sheetActionText: {
-    color: "#0a84ff",
-    fontFamily: FONTS.medium,
-    fontSize: 16,
-  },
-  sheetPickerWrap: {
-    backgroundColor: "#1d1d1f",
-  },
-  sheetPicker: {
-    height: 216,
-    color: "#ffffff",
-  },
-  sheetPickerItem: {
-    color: "#ffffff",
-    fontFamily: FONTS.regular,
-    fontSize: 20,
   },
 });
