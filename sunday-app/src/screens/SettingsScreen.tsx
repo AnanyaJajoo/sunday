@@ -15,6 +15,7 @@ import {
   LocationPickerModal,
   SelectedLocation,
 } from "../components/LocationPickerModal";
+import { OptionPickerModal } from "../components/OptionPickerModal";
 import { FONTS } from "../constants/fonts";
 import {
   AppSettingsValues,
@@ -31,8 +32,39 @@ const ACCENT = "#ffffff";
 const AUTOSAVE_DELAY_MS = 500;
 const TIME_SETTING_KEYS = ["WORKDAY_START_TIME", "WORKDAY_END_TIME"] as const;
 type TimeSettingKey = (typeof TIME_SETTING_KEYS)[number];
+const DEFAULT_TIMEZONE_OPTIONS = [
+  "America/Chicago",
+  "America/New_York",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Phoenix",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Mexico_City",
+  "America/Sao_Paulo",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Madrid",
+  "Europe/Rome",
+  "Europe/Amsterdam",
+  "Europe/Dublin",
+  "Europe/Istanbul",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Asia/Shanghai",
+  "Australia/Sydney",
+  "Australia/Melbourne",
+  "Pacific/Auckland",
+  "UTC",
+] as const;
 
-type FieldKind = "text" | "number" | "decimal" | "boolean" | "choice";
+type FieldKind = "text" | "number" | "decimal" | "boolean" | "choice" | "select";
 
 type SettingField = {
   key: string;
@@ -92,8 +124,10 @@ const SETTINGS_SECTIONS: SettingSection[] = [
       {
         key: "TIMEZONE",
         label: "Time zone",
+        description: "Choose a valid IANA time zone.",
         placeholder: "America/Chicago",
-        kind: "text",
+        kind: "select",
+        options: [...DEFAULT_TIMEZONE_OPTIONS],
       },
       {
         key: "TEXT_EMAIL_LINKS",
@@ -237,6 +271,19 @@ function isTimeSettingKey(value: string): value is TimeSettingKey {
   return (TIME_SETTING_KEYS as readonly string[]).includes(value);
 }
 
+function getTimeZoneOptions() {
+  const supportedValuesOf = (
+    Intl as unknown as {
+      supportedValuesOf?: (key: string) => string[];
+    }
+  ).supportedValuesOf;
+
+  const dynamicOptions =
+    typeof supportedValuesOf === "function" ? supportedValuesOf("timeZone") : [];
+  const merged = [...DEFAULT_TIMEZONE_OPTIONS, ...dynamicOptions];
+  return [...new Set(merged)].sort((left, right) => left.localeCompare(right));
+}
+
 function formatTimeForDisplay(value: string | boolean | undefined) {
   if (typeof value !== "string") {
     return "";
@@ -308,6 +355,7 @@ export function SettingsScreen() {
   const [warnings, setWarnings] = React.useState<string[]>([]);
   const [errors, setErrors] = React.useState<string[]>([]);
   const [activeLocationGroupId, setActiveLocationGroupId] = React.useState<LocationSettingGroup["id"] | null>(null);
+  const [activeSelectField, setActiveSelectField] = React.useState<SettingField | null>(null);
   const lastSavedSettingsRef = React.useRef("");
   const hasLoadedSettingsRef = React.useRef(false);
   const saveSequenceRef = React.useRef(0);
@@ -475,6 +523,7 @@ export function SettingsScreen() {
       LOCATION_SETTING_GROUPS.find((group) => group.id === activeLocationGroupId) ?? null,
     [activeLocationGroupId],
   );
+  const timeZoneOptions = React.useMemo(() => getTimeZoneOptions(), []);
 
   const activePickerCoordinate = React.useMemo(() => {
     if (!activeLocationGroup) {
@@ -489,6 +538,16 @@ export function SettingsScreen() {
 
     return defaultPickerCoordinate(settings);
   }, [activeLocationGroup, settings]);
+
+  const activeSelectOptions = React.useMemo(() => {
+    if (!activeSelectField) {
+      return [];
+    }
+    if (activeSelectField.key === "TIMEZONE") {
+      return timeZoneOptions;
+    }
+    return activeSelectField.options ?? [];
+  }, [activeSelectField, timeZoneOptions]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -617,6 +676,22 @@ export function SettingsScreen() {
                               );
                             })}
                           </View>
+                        ) : field.kind === "select" ? (
+                          <Pressable
+                            onPress={() => setActiveSelectField(field)}
+                            style={styles.selectField}
+                          >
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.selectFieldText,
+                                !stringValue && styles.selectFieldPlaceholder,
+                              ]}
+                            >
+                              {stringValue || field.placeholder || "Select an option"}
+                            </Text>
+                            <Text style={styles.selectFieldChevron}>▾</Text>
+                          </Pressable>
                         ) : (
                           <TextInput
                             autoCapitalize="none"
@@ -662,6 +737,25 @@ export function SettingsScreen() {
           initialLabel={String(settings[activeLocationGroup.locationKey] ?? "")}
           onClose={() => setActiveLocationGroupId(null)}
           onConfirm={(selection) => handleLocationSelected(activeLocationGroup, selection)}
+        />
+      ) : null}
+
+      {activeSelectField ? (
+        <OptionPickerModal
+          visible
+          title={activeSelectField.label}
+          options={activeSelectOptions}
+          value={String(settings[activeSelectField.key] ?? "")}
+          searchPlaceholder={
+            activeSelectField.key === "TIMEZONE"
+              ? "Search time zones"
+              : "Search options"
+          }
+          onClose={() => setActiveSelectField(null)}
+          onSelect={(option) => {
+            handleTextChange(activeSelectField.key, option);
+            setActiveSelectField(null);
+          }}
         />
       ) : null}
     </SafeAreaView>
@@ -781,6 +875,30 @@ const styles = StyleSheet.create({
     color: BACKGROUND,
     fontFamily: FONTS.semibold,
     fontSize: 14,
+  },
+  selectField: {
+    minHeight: 46,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    backgroundColor: PANEL_ALT,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  selectFieldText: {
+    flex: 1,
+    color: "#ffffff",
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+  },
+  selectFieldPlaceholder: {
+    color: "#6f6f6f",
+  },
+  selectFieldChevron: {
+    color: MUTED,
+    fontFamily: FONTS.semibold,
+    fontSize: 16,
   },
   choiceRow: {
     flexDirection: "row",
