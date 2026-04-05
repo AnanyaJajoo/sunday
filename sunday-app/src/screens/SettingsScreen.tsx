@@ -26,11 +26,16 @@ import {
 } from "../components/LocationPickerModal";
 import { TextSegmentedSelector } from "../components/TextSegmentedSelector";
 import { TravelTypeSelector } from "../components/TravelTypeSelector";
+import {
+  AdvancedSection,
+  AdvancedSubSection,
+} from "./settings/AdvancedSection";
 import { FONTS } from "../constants/fonts";
 import {
   getConnectionPreferences,
   saveConnectionPreferences,
 } from "../lib/connectionPreferences";
+import { getCurrentPositionAsync } from "expo-location";
 import {
   getPhoneLocationPermissionState,
   getPhoneLocationEnabledPreference,
@@ -40,6 +45,7 @@ import {
 import {
   AppSettingsValues,
   fetchAppSettings,
+  reverseGeocodeLocation,
   saveAppSettings,
 } from "../lib/settings";
 
@@ -62,6 +68,12 @@ const NUMERIC_PICKER_KEYS = [
   "ONLINE_PREP_MINUTES",
   "POLL_INTERVAL_SECONDS",
   "MAX_EMAILS_PER_CYCLE",
+  "AUTO_CLEANUP_HOURS",
+  "LLM_MAX_TOKENS",
+  "LLM_REQUESTS_PER_MINUTE",
+  "LLM_RETRY_ATTEMPTS",
+  "TRANSCRIPTION_THREADS",
+  "TRANSCRIPT_TITLE_MAX_NEW_TOKENS",
 ] as const;
 type NumericPickerKey = (typeof NUMERIC_PICKER_KEYS)[number];
 const DEFAULT_TIMEZONE_OPTIONS = [
@@ -138,10 +150,11 @@ type OptionSheetKind =
   | "TRANSCRIPT_TITLE_DEVICE"
   | "LOG_LEVEL";
 
-const AGENT_MODE_OPTIONS = ["off", "builtin", "openclaw"] as const;
+const AGENT_MODE_OPTIONS = ["off", "builtin", "openclaw", "both"] as const;
 const AGENT_MODE_LABELS: Record<string, string> = {
   off: "Off",
   builtin: "Built-in AI",
+  both: "Both",
   openclaw: "OpenClaw",
 };
 
@@ -234,19 +247,19 @@ function WorkLocationIcon({ size = 22, color = "#e3e3e3" }: { size?: number; col
   );
 }
 
-const SETTINGS_SECTIONS: SettingSection[] = [
+const PRIMARY_SECTIONS: SettingSection[] = [
   {
     title: "Calendar",
     fields: [
       {
         key: "TARGET_CALENDAR_ID",
-        label: "Google Calendar ID",
+        label: "Calendar",
         placeholder: "primary",
         kind: "text",
       },
       {
         key: "TIMEZONE",
-        label: "Time Zone",
+        label: "Time zone",
         description: "Choose a valid IANA time zone.",
         placeholder: "America/Chicago",
         kind: "select",
@@ -254,7 +267,7 @@ const SETTINGS_SECTIONS: SettingSection[] = [
       },
       {
         key: "TEXT_EMAIL_LINKS",
-        label: "Text email links with reminders",
+        label: "Include links in reminders",
         kind: "boolean",
       },
     ],
@@ -275,23 +288,22 @@ const SETTINGS_SECTIONS: SettingSection[] = [
     ],
   },
   {
-    title: "Travel & Hours",
+    title: "Schedule & Travel",
     fields: [
       {
         key: "WORK_DAYS",
         label: "Work days",
-        description: "Days when work-hours logic applies.",
         kind: "text",
       },
       {
         key: "WORKDAY_START_TIME",
-        label: "Start time",
+        label: "Day starts",
         placeholder: "09:00",
         kind: "text",
       },
       {
         key: "WORKDAY_END_TIME",
-        label: "End time",
+        label: "Day ends",
         placeholder: "17:00",
         kind: "text",
       },
@@ -303,131 +315,18 @@ const SETTINGS_SECTIONS: SettingSection[] = [
       },
       {
         key: "PREP_TIME_MINUTES",
-        label: "Prep time (in-person)",
+        label: "Buffer before in-person",
         kind: "number",
       },
       {
         key: "ONLINE_PREP_MINUTES",
-        label: "Prep time (online)",
+        label: "Buffer before online",
         kind: "number",
       },
     ],
   },
   {
-    title: "Inbox",
-    fields: [
-      {
-        key: "GMAIL_LABELS",
-        label: "Labels to watch",
-        description: "CATEGORY_PRIMARY is recommended. Comma-separate multiple labels.",
-        placeholder: "CATEGORY_PRIMARY",
-        kind: "text",
-      },
-      {
-        key: "POLL_INTERVAL_SECONDS",
-        label: "Check every (seconds)",
-        kind: "number",
-      },
-      {
-        key: "MAX_EMAILS_PER_CYCLE",
-        label: "Max emails per check",
-        kind: "number",
-      },
-    ],
-  },
-  {
-    title: "Provider",
-    fields: [
-      {
-        key: "ACTIVE_LLM_PROVIDER",
-        label: "LLM provider",
-        kind: "select",
-        options: [...LLM_PROVIDER_OPTIONS],
-      },
-      {
-        key: "GEMINI_MODEL",
-        label: "Gemini model",
-        kind: "text",
-      },
-      {
-        key: "OPENROUTER_MODEL",
-        label: "OpenRouter model",
-        kind: "text",
-      },
-      {
-        key: "OPENROUTER_SITE_URL",
-        label: "OpenRouter site URL",
-        kind: "text",
-      },
-      {
-        key: "OPENROUTER_APP_NAME",
-        label: "OpenRouter app name",
-        kind: "text",
-      },
-      {
-        key: "GROQ_MODEL",
-        label: "Groq model",
-        kind: "text",
-      },
-      {
-        key: "CEREBRAS_MODEL",
-        label: "Cerebras model",
-        kind: "text",
-      },
-      {
-        key: "OLLAMA_BASE_URL",
-        label: "Ollama base URL",
-        kind: "text",
-      },
-      {
-        key: "OLLAMA_MODEL",
-        label: "Ollama model",
-        kind: "text",
-      },
-      {
-        key: "TOGETHER_MODEL",
-        label: "Together model",
-        kind: "text",
-      },
-      {
-        key: "MISTRAL_MODEL",
-        label: "Mistral model",
-        kind: "text",
-      },
-      {
-        key: "HUGGINGFACE_MODEL",
-        label: "Hugging Face model",
-        kind: "text",
-      },
-      {
-        key: "CUSTOM_LLM_BASE_URL",
-        label: "Custom base URL",
-        kind: "text",
-      },
-      {
-        key: "CUSTOM_LLM_MODEL",
-        label: "Custom model",
-        kind: "text",
-      },
-    ],
-  },
-  {
-    title: "Google",
-    fields: [
-      {
-        key: "GOOGLE_CREDENTIALS_FILE",
-        label: "Credentials file",
-        kind: "text",
-      },
-      {
-        key: "GOOGLE_TOKEN_FILE",
-        label: "Token file",
-        kind: "text",
-      },
-    ],
-  },
-  {
-    title: "Messaging",
+    title: "Notifications",
     fields: [
       {
         key: "IMESSAGE_ENABLED",
@@ -436,7 +335,7 @@ const SETTINGS_SECTIONS: SettingSection[] = [
       },
       {
         key: "IMESSAGE_RECIPIENT",
-        label: "iMessage recipient",
+        label: "Send to",
         kind: "text",
         placeholder: "+1...",
       },
@@ -454,129 +353,93 @@ const SETTINGS_SECTIONS: SettingSection[] = [
       },
     ],
   },
+];
+
+const ADVANCED_SECTIONS: { title: string; fields: SettingField[] }[] = [
   {
-    title: "Runtime",
+    title: "Email Scanning",
     fields: [
       {
-        key: "AUTO_CLEANUP_HOURS",
-        label: "Auto cleanup hours",
-        kind: "number",
-      },
-      {
         key: "GMAIL_LABELS",
-        label: "Gmail labels",
+        label: "Gmail labels to watch",
+        placeholder: "CATEGORY_PRIMARY",
         kind: "text",
+        description: "Comma-separate multiple labels.",
       },
-      {
-        key: "STATE_DIR",
-        label: "State directory",
-        kind: "text",
-      },
-      {
-        key: "LLM_MAX_TOKENS",
-        label: "LLM max tokens",
-        kind: "number",
-      },
-      {
-        key: "LLM_TEMPERATURE",
-        label: "LLM temperature",
-        kind: "decimal",
-      },
-      {
-        key: "LLM_REQUESTS_PER_MINUTE",
-        label: "LLM requests per minute",
-        kind: "number",
-      },
-      {
-        key: "LLM_RETRY_ATTEMPTS",
-        label: "LLM retry attempts",
-        kind: "number",
-      },
-      {
-        key: "LLM_RETRY_BASE_SECONDS",
-        label: "LLM retry base seconds",
-        kind: "decimal",
-      },
-      {
-        key: "TRANSCRIPTION_LANGUAGE",
-        label: "Transcription language",
-        kind: "text",
-      },
-      {
-        key: "TRANSCRIPTION_THREADS",
-        label: "Transcription threads",
-        kind: "number",
-      },
+      { key: "POLL_INTERVAL_SECONDS", label: "Check interval (sec)", kind: "number" },
+      { key: "MAX_EMAILS_PER_CYCLE", label: "Emails per check", kind: "number" },
+      { key: "AUTO_CLEANUP_HOURS", label: "Auto-clean history (hours)", kind: "number" },
+    ],
+  },
+  {
+    title: "AI Tuning",
+    fields: [
+      { key: "LLM_MAX_TOKENS", label: "Max tokens", kind: "number" },
+      { key: "LLM_TEMPERATURE", label: "Temperature", kind: "decimal" },
+      { key: "LLM_REQUESTS_PER_MINUTE", label: "Requests per minute", kind: "number" },
+      { key: "LLM_RETRY_ATTEMPTS", label: "Retry attempts", kind: "number" },
+      { key: "LLM_RETRY_BASE_SECONDS", label: "Retry delay (seconds)", kind: "decimal" },
+    ],
+  },
+  {
+    title: "Transcription",
+    fields: [
+      { key: "TRANSCRIPTION_LANGUAGE", label: "Language", kind: "text" },
+      { key: "TRANSCRIPTION_THREADS", label: "Threads", kind: "number" },
       {
         key: "TRANSCRIPT_TITLE_DEVICE",
         label: "Summary device",
         kind: "select",
         options: [...TITLE_DEVICE_OPTIONS],
       },
-      {
-        key: "TRANSCRIPT_TITLE_MAX_NEW_TOKENS",
-        label: "Summary max new tokens",
-        kind: "number",
-      },
+      { key: "TRANSCRIPT_TITLE_MAX_NEW_TOKENS", label: "Max new tokens", kind: "number" },
+    ],
+  },
+  {
+    title: "System",
+    fields: [
+      { key: "GOOGLE_CREDENTIALS_FILE", label: "Credentials file path", kind: "text" },
+      { key: "GOOGLE_TOKEN_FILE", label: "Token file path", kind: "text" },
+      { key: "STATE_DIR", label: "State directory", kind: "text" },
       {
         key: "LOG_LEVEL",
         label: "Log level",
         kind: "select",
         options: [...LOG_LEVEL_OPTIONS],
       },
+      { key: "GOOGLE_MAPS_API_KEY", label: "Maps API key", kind: "secret" },
     ],
   },
-  {
-    title: "Danger Zone",
-    tone: "danger",
-    fields: [
-      {
-        key: "GEMINI_API_KEY",
-        label: "Gemini API key",
-        kind: "secret",
-      },
-      {
-        key: "OPENROUTER_API_KEY",
-        label: "OpenRouter API key",
-        kind: "secret",
-      },
-      {
-        key: "GROQ_API_KEY",
-        label: "Groq API key",
-        kind: "secret",
-      },
-      {
-        key: "CEREBRAS_API_KEY",
-        label: "Cerebras API key",
-        kind: "secret",
-      },
-      {
-        key: "TOGETHER_API_KEY",
-        label: "Together API key",
-        kind: "secret",
-      },
-      {
-        key: "MISTRAL_API_KEY",
-        label: "Mistral API key",
-        kind: "secret",
-      },
-      {
-        key: "HUGGINGFACE_API_KEY",
-        label: "Hugging Face API key",
-        kind: "secret",
-      },
-      {
-        key: "CUSTOM_LLM_API_KEY",
-        label: "Custom API key",
-        kind: "secret",
-      },
-      {
-        key: "GOOGLE_MAPS_API_KEY",
-        label: "Google Maps API key",
-        kind: "secret",
-      },
-    ],
-  },
+];
+
+const PROVIDER_FIELDS: Record<string, SettingField[]> = {
+  gemini: [
+    { key: "GEMINI_MODEL", label: "Model", kind: "text", placeholder: "gemini-2.0-flash" },
+  ],
+  openrouter: [
+    { key: "OPENROUTER_MODEL", label: "Model", kind: "text", placeholder: "openai/gpt-4o" },
+    { key: "OPENROUTER_SITE_URL", label: "Site URL", kind: "text" },
+    { key: "OPENROUTER_APP_NAME", label: "App name", kind: "text" },
+  ],
+  groq: [{ key: "GROQ_MODEL", label: "Model", kind: "text" }],
+  cerebras: [{ key: "CEREBRAS_MODEL", label: "Model", kind: "text" }],
+  ollama: [
+    { key: "OLLAMA_BASE_URL", label: "Base URL", kind: "text", placeholder: "http://localhost:11434" },
+    { key: "OLLAMA_MODEL", label: "Model", kind: "text" },
+  ],
+  together: [{ key: "TOGETHER_MODEL", label: "Model", kind: "text" }],
+  mistral: [{ key: "MISTRAL_MODEL", label: "Model", kind: "text" }],
+  huggingface: [{ key: "HUGGINGFACE_MODEL", label: "Model", kind: "text" }],
+  custom: [
+    { key: "CUSTOM_LLM_BASE_URL", label: "Base URL", kind: "text" },
+    { key: "CUSTOM_LLM_MODEL", label: "Model", kind: "text" },
+  ],
+};
+
+const ALL_SETTINGS_FIELDS: SettingField[] = [
+  ...PRIMARY_SECTIONS.flatMap((s) => s.fields),
+  ...ADVANCED_SECTIONS.flatMap((s) => s.fields),
+  ...Object.values(PROVIDER_FIELDS).flat(),
 ];
 
 function getKeyboardType(kind: FieldKind) {
@@ -591,9 +454,13 @@ function getKeyboardType(kind: FieldKind) {
 
 function getInitialSettingsState() {
   const values: AppSettingsValues = {};
-  for (const section of SETTINGS_SECTIONS) {
-    for (const field of section.fields) {
-      values[field.key] = field.kind === "boolean" ? false : "";
+  for (const field of ALL_SETTINGS_FIELDS) {
+    values[field.key] = field.kind === "boolean" ? false : "";
+  }
+  for (const provider of LLM_PROVIDER_OPTIONS) {
+    const config = getProviderApiKeyConfig(provider);
+    if (config) {
+      values[config.key] = "";
     }
   }
   for (const group of LOCATION_SETTING_GROUPS) {
@@ -779,6 +646,7 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
   const [settings, setSettings] = React.useState<AppSettingsValues>(getInitialSettingsState);
   const [settingsMetadata, setSettingsMetadata] = React.useState<Record<string, string>>({});
   const [isPhoneLocationEnabled, setIsPhoneLocationEnabled] = React.useState(false);
+  const [phoneLocationLabel, setPhoneLocationLabel] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -879,6 +747,28 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
 
         if (!cancelled) {
           setIsPhoneLocationEnabled(enabled);
+
+          if (enabled) {
+            try {
+              const position = await getCurrentPositionAsync({ accuracy: 4 });
+              if (!cancelled) {
+                const result = await reverseGeocodeLocation(
+                  position.coords.latitude,
+                  position.coords.longitude,
+                );
+                if (!cancelled) {
+                  setPhoneLocationLabel(
+                    result.label ||
+                      `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`,
+                  );
+                }
+              }
+            } catch {
+              if (!cancelled) {
+                setPhoneLocationLabel("Location detected");
+              }
+            }
+          }
         }
       } catch (error) {
         console.warn(
@@ -1097,6 +987,7 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
 
     if (!nextValue) {
       setIsPhoneLocationEnabled(false);
+      setPhoneLocationLabel(null);
       await setPhoneLocationEnabledPreference(false);
       return;
     }
@@ -1106,6 +997,18 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
       if (permission.granted) {
         setIsPhoneLocationEnabled(true);
         await setPhoneLocationEnabledPreference(true);
+
+        // Fetch current position and reverse geocode
+        try {
+          const position = await getCurrentPositionAsync({ accuracy: 4 });
+          const result = await reverseGeocodeLocation(
+            position.coords.latitude,
+            position.coords.longitude,
+          );
+          setPhoneLocationLabel(result.label || `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
+        } catch {
+          setPhoneLocationLabel("Location detected");
+        }
         return;
       }
 
@@ -1485,6 +1388,232 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
     }).start();
   }, [calendarEditorProgress, isEditingCalendarId]);
 
+  const renderFieldRow = React.useCallback(
+    (field: SettingField, index: number, totalFields: number) => {
+      const rawValue = settings[field.key];
+      const stringValue = typeof rawValue === "boolean" ? "" : String(rawValue ?? "");
+      const boolValue = rawValue === true;
+      const isInline =
+        field.kind === "boolean" ||
+        field.kind === "select" ||
+        field.key === "TARGET_CALENDAR_ID" ||
+        isNumericPickerKey(field.key) ||
+        isTimeSettingKey(field.key) ||
+        field.key === "TIMEZONE";
+
+      return (
+        <View
+          key={field.key}
+          style={[
+            isInline && styles.fieldRowInline,
+            styles.fieldRow,
+            index !== totalFields - 1 && styles.fieldRowBorder,
+          ]}
+        >
+          <View style={[styles.fieldHeader, isInline && styles.fieldHeaderInline]}>
+            <Text numberOfLines={1} style={styles.fieldLabel}>
+              {field.label}
+            </Text>
+          </View>
+
+          {field.kind === "boolean" ? (
+            <Switch
+              value={boolValue}
+              onValueChange={(value) => handleToggleChange(field.key, value)}
+              ios_backgroundColor={TOGGLE_OFF}
+              trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
+              thumbColor={boolValue ? "#ffffff" : "#d6d6d6"}
+            />
+          ) : field.key === "WORK_DAYS" ? (
+            <View style={styles.workdayRow}>
+              {WORKDAY_OPTIONS.map((option) => {
+                const selected = parseWorkDays(stringValue).has(option.value);
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => handleWorkDayToggle(option.value)}
+                    style={[
+                      styles.workdayButton,
+                      selected && styles.workdayButtonSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.workdayButtonText,
+                        selected && styles.workdayButtonTextSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : isTimeSettingKey(field.key) ? (
+            (() => {
+              const timeKey = field.key;
+              return (
+                <DateTimePicker
+                  value={getTimeSettingDate(settings[timeKey])}
+                  mode="time"
+                  display={Platform.OS === "ios" ? "compact" : "default"}
+                  themeVariant="dark"
+                  accentColor="#ffffff"
+                  onChange={(event, selectedDate) =>
+                    handleTimeChange(timeKey, event, selectedDate)
+                  }
+                  style={styles.timePicker}
+                />
+              );
+            })()
+          ) : field.key === "TRAVEL_TYPE" ? (
+            <TravelTypeSelector
+              value={stringValue || "driving"}
+              onChange={(value) => handleTextChange(field.key, value)}
+              onInteractionChange={onSegmentInteractionChange}
+            />
+          ) : field.kind === "choice" ? (
+            <View style={styles.choiceRow}>
+              {field.options?.map((option) => {
+                const selected = stringValue === option;
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => handleTextChange(field.key, option)}
+                    style={[
+                      styles.choiceChip,
+                      selected && styles.choiceChipSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.choiceChipText,
+                        selected && styles.choiceChipTextSelected,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : field.key === "TARGET_CALENDAR_ID" ? (
+            <Animated.View
+              style={[styles.calendarFieldAnimatedWrap, calendarFieldAnimatedStyle]}
+            >
+              <Text
+                onLayout={(event) => setCalendarDisplayWidth(event.nativeEvent.layout.width)}
+                style={[styles.calendarMeasureText, styles.selectTriggerText]}
+              >
+                {targetCalendarDisplayValue}
+              </Text>
+              {isEditingCalendarId ? (
+                <TextInput
+                  ref={calendarIdInputRef}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardAppearance="dark"
+                  multiline={false}
+                  numberOfLines={1}
+                  onBlur={closeCalendarIdEditor}
+                  onChangeText={handleCalendarIdChange}
+                  onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+                  onSubmitEditing={closeCalendarIdEditor}
+                  placeholder={field.placeholder}
+                  placeholderTextColor="#6f6f6f"
+                  selectTextOnFocus
+                  style={[styles.input, styles.calendarIdInput]}
+                  value={stringValue}
+                />
+              ) : (
+                <Pressable
+                  onPress={openCalendarIdEditor}
+                  style={[styles.selectTrigger, styles.calendarSelectTrigger]}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.selectTriggerText, styles.calendarSelectTriggerText]}
+                  >
+                    {targetCalendarDisplayValue}
+                  </Text>
+                </Pressable>
+              )}
+            </Animated.View>
+          ) : field.key === "TIMEZONE" ? (
+            <Pressable onPress={openTimezonePicker} style={styles.selectTrigger}>
+              <Text numberOfLines={1} style={styles.selectTriggerText}>
+                {timeZoneDisplayValue || field.placeholder || "Select"}
+              </Text>
+            </Pressable>
+          ) : field.kind === "select" ? (
+            <Pressable
+              onPress={() => openOptionPicker(field.key as OptionSheetKind)}
+              style={styles.selectTrigger}
+            >
+              <Text numberOfLines={1} style={styles.selectTriggerText}>
+                {stringValue || field.placeholder || "Select"}
+              </Text>
+            </Pressable>
+          ) : isNumericPickerKey(field.key) ? (
+            (() => {
+              const numericKey = field.key;
+              return (
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  inputMode="numeric"
+                  keyboardAppearance="dark"
+                  keyboardType="number-pad"
+                  onChangeText={(value) =>
+                    handleTextChange(numericKey, value.replace(/[^\d]/g, ""))
+                  }
+                  onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+                  placeholder="0"
+                  placeholderTextColor="#6f6f6f"
+                  selectTextOnFocus
+                  style={styles.numericInput}
+                  value={stringValue}
+                />
+              );
+            })()
+          ) : (
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardAppearance="dark"
+              keyboardType={getKeyboardType(field.kind)}
+              onChangeText={(value) => handleTextChange(field.key, value)}
+              onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+              placeholder={field.placeholder}
+              placeholderTextColor="#6f6f6f"
+              secureTextEntry={field.kind === "secret"}
+              style={styles.input}
+              value={stringValue}
+            />
+          )}
+        </View>
+      );
+    },
+    [
+      calendarFieldAnimatedStyle,
+      closeCalendarIdEditor,
+      handleCalendarIdChange,
+      handleTextChange,
+      handleTextInputFocus,
+      handleTimeChange,
+      handleToggleChange,
+      handleWorkDayToggle,
+      isEditingCalendarId,
+      onSegmentInteractionChange,
+      openCalendarIdEditor,
+      openOptionPicker,
+      openTimezonePicker,
+      settings,
+      targetCalendarDisplayValue,
+      timeZoneDisplayValue,
+    ],
+  );
+
   if (isLoading) {
     return (
       <SafeAreaView edges={["left", "right"]} style={styles.safe}>
@@ -1518,315 +1647,22 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
         </View>
 
         <>
-          {SETTINGS_SECTIONS.map((section) => (
-            <View key={section.title} style={styles.section}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  section.tone === "danger" && styles.sectionTitleDanger,
-                ]}
-              >
-                {section.title}
-              </Text>
-              <View style={styles.sectionPanel}>
-                {section.title === "Locations"
-                  ? (
-                      <>
-                        {LOCATION_SETTING_GROUPS.map((group) => {
-                        const locationValue = String(settings[group.locationKey] ?? "");
-
-                        return (
-                          <View
-                            key={group.id}
-                            style={[
-                              styles.fieldRow,
-                              styles.fieldRowInline,
-                              styles.locationFieldRow,
-                              styles.fieldRowBorder,
-                            ]}
-                          >
-                            <View style={[styles.fieldHeader, styles.fieldHeaderInline, styles.locationFieldHeader]}>
-                              <View style={styles.locationIconWrap}>
-                                {group.id === "home" ? <HomeLocationIcon /> : <WorkLocationIcon />}
-                              </View>
-                            </View>
-
-                            <Pressable
-                              onPress={() => setActiveLocationGroupId(group.id)}
-                              style={styles.locationValueButton}
-                            >
-                              <Text
-                                numberOfLines={1}
-                                style={[
-                                  styles.locationValueText,
-                                  !locationValue && styles.locationValuePlaceholder,
-                                ]}
-                              >
-                                {locationValue || group.placeholder}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        );
-                        })}
-                        <View style={[styles.fieldRow, styles.fieldRowInline]}>
-                          <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                            <Text style={styles.fieldLabel}>Use your phone location</Text>
-                          </View>
-                          <Switch
-                            value={isPhoneLocationEnabled}
-                            onValueChange={(value) => {
-                              void handlePhoneLocationToggle(value);
-                            }}
-                            ios_backgroundColor={TOGGLE_OFF}
-                            trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
-                            thumbColor={isPhoneLocationEnabled ? "#ffffff" : "#d6d6d6"}
-                          />
-                        </View>
-                      </>
-                    )
-                  : section.fields.map((field, index) => {
-                    const rawValue = settings[field.key];
-                    const stringValue = typeof rawValue === "boolean" ? "" : String(rawValue ?? "");
-                    const boolValue = rawValue === true;
-
-                    return (
-                      <View
-                        key={field.key}
-                        style={[
-                          (field.kind === "boolean" ||
-                            field.kind === "select" ||
-                            field.key === "TARGET_CALENDAR_ID" ||
-                            isNumericPickerKey(field.key) ||
-                            isTimeSettingKey(field.key) ||
-                            field.key === "TIMEZONE") &&
-                            styles.fieldRowInline,
-                          styles.fieldRow,
-                          index !== section.fields.length - 1 && styles.fieldRowBorder,
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.fieldHeader,
-                            (field.kind === "boolean" ||
-                              field.kind === "select" ||
-                              field.key === "TARGET_CALENDAR_ID" ||
-                              isNumericPickerKey(field.key) ||
-                              isTimeSettingKey(field.key) ||
-                              field.key === "TIMEZONE") &&
-                              styles.fieldHeaderInline,
-                          ]}
-                        >
-                          <Text numberOfLines={1} style={styles.fieldLabel}>
-                            {field.label}
-                          </Text>
-                        </View>
-
-                        {field.kind === "boolean" ? (
-                          <Switch
-                            value={boolValue}
-                            onValueChange={(value) => handleToggleChange(field.key, value)}
-                            ios_backgroundColor={TOGGLE_OFF}
-                            trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
-                            thumbColor={boolValue ? "#ffffff" : "#d6d6d6"}
-                          />
-                        ) : field.key === "WORK_DAYS" ? (
-                          <View style={styles.workdayRow}>
-                            {WORKDAY_OPTIONS.map((option) => {
-                              const selected = parseWorkDays(stringValue).has(option.value);
-                              return (
-                                <Pressable
-                                  key={option.value}
-                                  onPress={() => handleWorkDayToggle(option.value)}
-                                  style={[
-                                    styles.workdayButton,
-                                    selected && styles.workdayButtonSelected,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.workdayButtonText,
-                                      selected && styles.workdayButtonTextSelected,
-                                    ]}
-                                  >
-                                    {option.label}
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        ) : isTimeSettingKey(field.key) ? (
-                          (() => {
-                            const timeKey = field.key;
-                            return (
-                              <DateTimePicker
-                                value={getTimeSettingDate(settings[timeKey])}
-                                mode="time"
-                                display={Platform.OS === "ios" ? "compact" : "default"}
-                                themeVariant="dark"
-                                accentColor="#ffffff"
-                                onChange={(event, selectedDate) =>
-                                  handleTimeChange(timeKey, event, selectedDate)
-                                }
-                                style={styles.timePicker}
-                              />
-                            );
-                          })()
-                        ) : field.key === "TRAVEL_TYPE" ? (
-                          <TravelTypeSelector
-                            value={stringValue || "driving"}
-                            onChange={(value) => handleTextChange(field.key, value)}
-                            onInteractionChange={onSegmentInteractionChange}
-                          />
-                        ) : field.kind === "choice" ? (
-                          <View style={styles.choiceRow}>
-                            {field.options?.map((option) => {
-                              const selected = stringValue === option;
-                              return (
-                                <Pressable
-                                  key={option}
-                                  onPress={() => handleTextChange(field.key, option)}
-                                  style={[
-                                    styles.choiceChip,
-                                    selected && styles.choiceChipSelected,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.choiceChipText,
-                                      selected && styles.choiceChipTextSelected,
-                                    ]}
-                                  >
-                                    {option}
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        ) : field.key === "TARGET_CALENDAR_ID" ? (
-                          <Animated.View
-                            style={[styles.calendarFieldAnimatedWrap, calendarFieldAnimatedStyle]}
-                          >
-                            <Text
-                              onLayout={(event) => setCalendarDisplayWidth(event.nativeEvent.layout.width)}
-                              style={[
-                                styles.calendarMeasureText,
-                                styles.selectTriggerText,
-                              ]}
-                            >
-                              {targetCalendarDisplayValue}
-                            </Text>
-                            {isEditingCalendarId ? (
-                              <TextInput
-                                ref={calendarIdInputRef}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                keyboardAppearance="dark"
-                                multiline={false}
-                                numberOfLines={1}
-                                onBlur={closeCalendarIdEditor}
-                                onChangeText={handleCalendarIdChange}
-                                onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                                onSubmitEditing={closeCalendarIdEditor}
-                                placeholder={field.placeholder}
-                                placeholderTextColor="#6f6f6f"
-                                selectTextOnFocus
-                                style={[styles.input, styles.calendarIdInput]}
-                                value={stringValue}
-                              />
-                            ) : (
-                              <Pressable
-                                onPress={openCalendarIdEditor}
-                                style={[styles.selectTrigger, styles.calendarSelectTrigger]}
-                              >
-                                <Text
-                                  numberOfLines={1}
-                                  style={[styles.selectTriggerText, styles.calendarSelectTriggerText]}
-                                >
-                                  {targetCalendarDisplayValue}
-                                </Text>
-                              </Pressable>
-                            )}
-                          </Animated.View>
-                        ) : field.key === "TIMEZONE" ? (
-                          <Pressable onPress={openTimezonePicker} style={styles.selectTrigger}>
-                            <Text numberOfLines={1} style={styles.selectTriggerText}>
-                              {timeZoneDisplayValue || field.placeholder || "Select"}
-                            </Text>
-                          </Pressable>
-                        ) : field.kind === "select" ? (
-                          <Pressable
-                            onPress={() => openOptionPicker(field.key as OptionSheetKind)}
-                            style={styles.selectTrigger}
-                          >
-                            <Text numberOfLines={1} style={styles.selectTriggerText}>
-                              {stringValue || field.placeholder || "Select"}
-                            </Text>
-                          </Pressable>
-                        ) : isNumericPickerKey(field.key) ? (
-                          (() => {
-                            const numericKey = field.key;
-                            return (
-                              <TextInput
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                inputMode="numeric"
-                                keyboardAppearance="dark"
-                                keyboardType="number-pad"
-                                onChangeText={(value) =>
-                                  handleTextChange(numericKey, value.replace(/[^\d]/g, ""))
-                                }
-                                onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                                placeholder="0"
-                                placeholderTextColor="#6f6f6f"
-                                selectTextOnFocus
-                                style={styles.numericInput}
-                                value={stringValue}
-                              />
-                            );
-                          })()
-                        ) : (
-                          <TextInput
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            keyboardAppearance="dark"
-                            keyboardType={getKeyboardType(field.kind)}
-                            onChangeText={(value) => handleTextChange(field.key, value)}
-                            onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                            placeholder={field.placeholder}
-                            placeholderTextColor="#6f6f6f"
-                            secureTextEntry={field.kind === "secret"}
-                            style={styles.input}
-                            value={stringValue}
-                          />
-                        )}
-                      </View>
-                    );
-                })}
-              </View>
-            </View>
-          ))}
-
+          {/* ── Connection (first — setup flow) ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Connections</Text>
-              <View style={styles.sectionPanel}>
+            <Text style={styles.sectionTitle}>Connection</Text>
+            <View style={styles.sectionPanel}>
               <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
                 <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                  <Text numberOfLines={1} style={styles.fieldLabel}>
-                    Agent
-                  </Text>
+                  <Text numberOfLines={1} style={styles.fieldLabel}>Agent</Text>
                 </View>
                 <Pressable onPress={() => openOptionPicker("agent")} style={styles.selectTrigger}>
-                  <Text numberOfLines={1} style={styles.selectTriggerText}>
-                    {connectedAgent}
-                  </Text>
+                  <Text numberOfLines={1} style={styles.selectTriggerText}>{connectedAgent}</Text>
                 </Pressable>
               </View>
 
               <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
                 <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                  <Text numberOfLines={1} style={styles.fieldLabel}>
-                    {activeConnectionField.label}
-                  </Text>
+                  <Text numberOfLines={1} style={styles.fieldLabel}>{activeConnectionField.label}</Text>
                 </View>
                 <TextInput
                   autoCapitalize="none"
@@ -1842,12 +1678,9 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
                 />
               </View>
 
-
               <View style={styles.fieldRow}>
                 <View style={styles.fieldHeader}>
-                  <Text numberOfLines={1} style={styles.fieldLabel}>
-                    Backend
-                  </Text>
+                  <Text numberOfLines={1} style={styles.fieldLabel}>Backend</Text>
                 </View>
                 <TextSegmentedSelector
                   options={BACKEND_OPTIONS}
@@ -1860,9 +1693,7 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
               {backendTarget === "Vercel" ? (
                 <View style={styles.fieldRow}>
                   <View style={styles.fieldHeader}>
-                    <Text numberOfLines={1} style={styles.fieldLabel}>
-                      Vercel URL
-                    </Text>
+                    <Text numberOfLines={1} style={styles.fieldLabel}>Vercel URL</Text>
                   </View>
                   <TextInput
                     autoCapitalize="none"
@@ -1882,161 +1713,306 @@ export function SettingsScreen({ onSegmentInteractionChange }: SettingsScreenPro
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Models</Text>
-            <View style={styles.sectionPanel}>
-              <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
-                <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                  <Text numberOfLines={1} style={styles.fieldLabel}>
-                    Transcription
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => openOptionPicker("transcription-model")}
-                  style={styles.selectTrigger}
-                >
-                  <Text numberOfLines={1} style={styles.selectTriggerText}>
-                    {transcriptionModel}
-                  </Text>
-                </Pressable>
-              </View>
+          {/* ── Primary sections (Calendar, Locations, Schedule, Notifications) ── */}
+          {PRIMARY_SECTIONS.map((section) => {
+            const visibleFields = section.fields.filter((field) => {
+              if (field.key === "IMESSAGE_RECIPIENT" && settings.IMESSAGE_ENABLED !== true) {
+                return false;
+              }
+              return true;
+            });
 
-              <View style={[styles.fieldRow, styles.fieldRowInline]}>
-                <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                  <Text numberOfLines={1} style={styles.fieldLabel}>
-                    Summarization
-                  </Text>
+            return (
+              <View key={section.title} style={styles.section}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <View style={styles.sectionPanel}>
+                  {section.title === "Locations" ? (
+                    <>
+                      {LOCATION_SETTING_GROUPS.map((group) => {
+                        const locationValue = String(settings[group.locationKey] ?? "");
+                        return (
+                          <View
+                            key={group.id}
+                            style={[
+                              styles.fieldRow,
+                              styles.fieldRowInline,
+                              styles.locationFieldRow,
+                              styles.fieldRowBorder,
+                            ]}
+                          >
+                            <View style={[styles.fieldHeader, styles.fieldHeaderInline, styles.locationFieldHeader]}>
+                              <View style={styles.locationIconWrap}>
+                                {group.id === "home" ? <HomeLocationIcon /> : <WorkLocationIcon />}
+                              </View>
+                            </View>
+                            <Pressable
+                              onPress={() => setActiveLocationGroupId(group.id)}
+                              style={styles.locationValueButton}
+                            >
+                              <Text
+                                numberOfLines={1}
+                                style={[
+                                  styles.locationValueText,
+                                  !locationValue && styles.locationValuePlaceholder,
+                                ]}
+                              >
+                                {locationValue || group.placeholder}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        );
+                      })}
+                      <View style={[styles.fieldRow, styles.fieldRowInline, isPhoneLocationEnabled && phoneLocationLabel ? styles.fieldRowBorder : undefined]}>
+                        <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                          <Text style={styles.fieldLabel}>Use your phone location</Text>
+                        </View>
+                        <Switch
+                          value={isPhoneLocationEnabled}
+                          onValueChange={(value) => {
+                            void handlePhoneLocationToggle(value);
+                          }}
+                          ios_backgroundColor={TOGGLE_OFF}
+                          trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
+                          thumbColor={isPhoneLocationEnabled ? "#ffffff" : "#d6d6d6"}
+                        />
+                      </View>
+                      {isPhoneLocationEnabled && phoneLocationLabel ? (
+                        <View style={[styles.fieldRow]}>
+                          <Text numberOfLines={1} style={styles.phoneLocationLabel}>
+                            {phoneLocationLabel}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </>
+                  ) : (
+                    visibleFields.map((field, index) =>
+                      renderFieldRow(field, index, visibleFields.length),
+                    )
+                  )}
                 </View>
-                <Pressable
-                  onPress={() => openOptionPicker("summarization-model")}
-                  style={styles.selectTrigger}
-                >
-                  <Text numberOfLines={1} style={styles.selectTriggerText}>
-                    {summarizationModel}
-                  </Text>
-                </Pressable>
               </View>
-            </View>
-          </View>
+            );
+          })}
 
+          {/* ── Intelligence (two independent toggles + models) ── */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Intelligence</Text>
-            <Text style={styles.sectionHint}>Optional — adds AI insights on top of your summaries.</Text>
+            <Text style={styles.sectionHint}>Add AI insights on top of your summaries. Enable one or both.</Text>
             <View style={styles.sectionPanel}>
-              <View style={[styles.fieldRow, styles.fieldRowInline, settings.AGENT_MODE && settings.AGENT_MODE !== "off" ? styles.fieldRowBorder : undefined]}>
-                <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                  <Text numberOfLines={1} style={styles.fieldLabel}>Mode</Text>
-                </View>
-                <Pressable onPress={() => openOptionPicker("AGENT_MODE")} style={styles.selectTrigger}>
-                  <Text numberOfLines={1} style={styles.selectTriggerText}>
-                    {AGENT_MODE_LABELS[String(settings.AGENT_MODE ?? "off")] ?? "Off"}
-                  </Text>
-                </Pressable>
-              </View>
+              {/* ── Built-in AI toggle ── */}
+              {(() => {
+                const agentMode = String(settings.AGENT_MODE ?? "off");
+                const builtinOn = agentMode === "builtin" || agentMode === "both";
+                const openclawOn = agentMode === "openclaw" || agentMode === "both";
 
-              {settings.AGENT_MODE === "builtin" && (() => {
+                const toggleBuiltin = (next: boolean) => {
+                  let mode: string;
+                  if (next && openclawOn) mode = "both";
+                  else if (next) mode = "builtin";
+                  else if (openclawOn) mode = "openclaw";
+                  else mode = "off";
+                  handleTextChange("AGENT_MODE", mode);
+                };
+
+                const toggleOpenclaw = (next: boolean) => {
+                  let mode: string;
+                  if (next && builtinOn) mode = "both";
+                  else if (next) mode = "openclaw";
+                  else if (builtinOn) mode = "builtin";
+                  else mode = "off";
+                  handleTextChange("AGENT_MODE", mode);
+                };
+
                 const provider = String(settings.ACTIVE_LLM_PROVIDER ?? "gemini");
                 const apiKeyConfig = getProviderApiKeyConfig(provider);
+
                 return (
                   <>
                     <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
                       <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                        <Text numberOfLines={1} style={styles.fieldLabel}>Provider</Text>
+                        <Text numberOfLines={1} style={styles.fieldLabel}>Built-in AI</Text>
                       </View>
-                      <Pressable onPress={() => openOptionPicker("ACTIVE_LLM_PROVIDER")} style={styles.selectTrigger}>
-                        <Text numberOfLines={1} style={styles.selectTriggerText}>{provider}</Text>
-                      </Pressable>
+                      <Switch
+                        value={builtinOn}
+                        onValueChange={toggleBuiltin}
+                        ios_backgroundColor={TOGGLE_OFF}
+                        trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
+                        thumbColor={builtinOn ? "#ffffff" : "#d6d6d6"}
+                      />
                     </View>
-                    {apiKeyConfig ? (
-                      <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
-                        <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                          <Text numberOfLines={1} style={styles.fieldLabel}>API key</Text>
+
+                    {builtinOn && (
+                      <>
+                        <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                          <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                            <Text numberOfLines={1} style={styles.fieldLabel}>Provider</Text>
+                          </View>
+                          <Pressable onPress={() => openOptionPicker("ACTIVE_LLM_PROVIDER")} style={styles.selectTrigger}>
+                            <Text numberOfLines={1} style={styles.selectTriggerText}>{provider}</Text>
+                          </Pressable>
                         </View>
-                        <TextInput
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          keyboardAppearance="dark"
-                          onChangeText={(value) => handleTextChange(apiKeyConfig.key, value)}
-                          onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                          placeholder={apiKeyConfig.placeholder}
-                          placeholderTextColor="#6f6f6f"
-                          secureTextEntry
-                          style={[styles.input, styles.connectionInput]}
-                          value={String(settings[apiKeyConfig.key] ?? "")}
-                        />
+                        {apiKeyConfig ? (
+                          <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                            <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                              <Text numberOfLines={1} style={styles.fieldLabel}>API key</Text>
+                            </View>
+                            <TextInput
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              keyboardAppearance="dark"
+                              onChangeText={(value) => handleTextChange(apiKeyConfig.key, value)}
+                              onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+                              placeholder={apiKeyConfig.placeholder}
+                              placeholderTextColor="#6f6f6f"
+                              secureTextEntry
+                              style={[styles.input, styles.connectionInput]}
+                              value={String(settings[apiKeyConfig.key] ?? "")}
+                            />
+                          </View>
+                        ) : (
+                          <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                            <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                              <Text numberOfLines={1} style={styles.fieldLabel}>Ollama URL</Text>
+                            </View>
+                            <TextInput
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              keyboardAppearance="dark"
+                              onChangeText={(value) => handleTextChange("OLLAMA_BASE_URL", value)}
+                              onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+                              placeholder="http://localhost:11434"
+                              placeholderTextColor="#6f6f6f"
+                              style={[styles.input, styles.connectionInput]}
+                              value={String(settings.OLLAMA_BASE_URL ?? "")}
+                            />
+                          </View>
+                        )}
+                      </>
+                    )}
+
+                    {/* ── OpenClaw toggle ── */}
+                    <View style={[styles.fieldRow, styles.fieldRowInline, openclawOn ? styles.fieldRowBorder : undefined]}>
+                      <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                        <Text numberOfLines={1} style={styles.fieldLabel}>OpenClaw</Text>
                       </View>
-                    ) : (
-                      <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
-                        <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                          <Text numberOfLines={1} style={styles.fieldLabel}>Ollama URL</Text>
+                      <Switch
+                        value={openclawOn}
+                        onValueChange={toggleOpenclaw}
+                        ios_backgroundColor={TOGGLE_OFF}
+                        trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
+                        thumbColor={openclawOn ? "#ffffff" : "#d6d6d6"}
+                      />
+                    </View>
+
+                    {openclawOn && (
+                      <>
+                        <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                          <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                            <Text numberOfLines={1} style={styles.fieldLabel}>URL</Text>
+                          </View>
+                          <TextInput
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardAppearance="dark"
+                            onChangeText={(value) => handleTextChange("OPENCLAW_BASE_URL", value)}
+                            onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+                            placeholder="http://localhost:18789"
+                            placeholderTextColor="#6f6f6f"
+                            style={[styles.input, styles.connectionInput]}
+                            value={String(settings.OPENCLAW_BASE_URL ?? "")}
+                          />
                         </View>
-                        <TextInput
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          keyboardAppearance="dark"
-                          onChangeText={(value) => handleTextChange("OLLAMA_BASE_URL", value)}
-                          onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                          placeholder="http://localhost:11434"
-                          placeholderTextColor="#6f6f6f"
-                          style={[styles.input, styles.connectionInput]}
-                          value={String(settings.OLLAMA_BASE_URL ?? "")}
-                        />
-                      </View>
+                        <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                          <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                            <Text numberOfLines={1} style={styles.fieldLabel}>Token</Text>
+                          </View>
+                          <TextInput
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardAppearance="dark"
+                            onChangeText={(value) => handleTextChange("OPENCLAW_TOKEN", value)}
+                            onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
+                            placeholder="hook token"
+                            placeholderTextColor="#6f6f6f"
+                            secureTextEntry
+                            style={[styles.input, styles.connectionInput]}
+                            value={String(settings.OPENCLAW_TOKEN ?? "")}
+                          />
+                        </View>
+                      </>
                     )}
                   </>
                 );
               })()}
 
-              {settings.AGENT_MODE === "openclaw" && (
-                <>
-                  <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
-                    <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                      <Text numberOfLines={1} style={styles.fieldLabel}>URL</Text>
-                    </View>
-                    <TextInput
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardAppearance="dark"
-                      onChangeText={(value) => handleTextChange("OPENCLAW_BASE_URL", value)}
-                      onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                      placeholder="http://localhost:18789"
-                      placeholderTextColor="#6f6f6f"
-                      style={[styles.input, styles.connectionInput]}
-                      value={String(settings.OPENCLAW_BASE_URL ?? "")}
-                    />
-                  </View>
-                  <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
-                    <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                      <Text numberOfLines={1} style={styles.fieldLabel}>Token</Text>
-                    </View>
-                    <TextInput
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardAppearance="dark"
-                      onChangeText={(value) => handleTextChange("OPENCLAW_TOKEN", value)}
-                      onFocus={(event) => handleTextInputFocus(event.nativeEvent.target)}
-                      placeholder="hook token"
-                      placeholderTextColor="#6f6f6f"
-                      secureTextEntry
-                      style={[styles.input, styles.connectionInput]}
-                      value={String(settings.OPENCLAW_TOKEN ?? "")}
-                    />
-                  </View>
-                  <View style={[styles.fieldRow, styles.fieldRowInline]}>
-                    <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
-                      <Text numberOfLines={1} style={styles.fieldLabel}>Enabled</Text>
-                    </View>
-                    <Switch
-                      onValueChange={(value) => handleTextChange("OPENCLAW_ENABLED", String(value))}
-                      thumbColor={ACCENT}
-                      trackColor={{ false: TOGGLE_OFF, true: TOGGLE_ON }}
-                      value={settings.OPENCLAW_ENABLED === true || settings.OPENCLAW_ENABLED === "true"}
-                    />
-                  </View>
-                </>
-              )}
+              {/* Model pickers — always visible */}
+              <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                  <Text numberOfLines={1} style={styles.fieldLabel}>Transcription</Text>
+                </View>
+                <Pressable
+                  onPress={() => openOptionPicker("transcription-model")}
+                  style={styles.selectTrigger}
+                >
+                  <Text numberOfLines={1} style={styles.selectTriggerText}>{transcriptionModel}</Text>
+                </Pressable>
+              </View>
+
+              <View style={[styles.fieldRow, styles.fieldRowInline]}>
+                <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                  <Text numberOfLines={1} style={styles.fieldLabel}>Summarization</Text>
+                </View>
+                <Pressable
+                  onPress={() => openOptionPicker("summarization-model")}
+                  style={styles.selectTrigger}
+                >
+                  <Text numberOfLines={1} style={styles.selectTriggerText}>{summarizationModel}</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
+
+          {/* ── Advanced (collapsed by default) ── */}
+          <AdvancedSection>
+            {ADVANCED_SECTIONS.map((section) => (
+              <AdvancedSubSection
+                key={section.title}
+                title={section.title}
+              >
+                {section.fields.map((field, index) =>
+                  renderFieldRow(field, index, section.fields.length),
+                )}
+              </AdvancedSubSection>
+            ))}
+
+            {/* AI Provider — only active provider's fields */}
+            <AdvancedSubSection title="AI Provider" isLast>
+              <View style={[styles.fieldRow, styles.fieldRowInline, styles.fieldRowBorder]}>
+                <View style={[styles.fieldHeader, styles.fieldHeaderInline]}>
+                  <Text numberOfLines={1} style={styles.fieldLabel}>Provider</Text>
+                </View>
+                <Pressable onPress={() => openOptionPicker("ACTIVE_LLM_PROVIDER")} style={styles.selectTrigger}>
+                  <Text numberOfLines={1} style={styles.selectTriggerText}>
+                    {String(settings.ACTIVE_LLM_PROVIDER ?? "gemini")}
+                  </Text>
+                </Pressable>
+              </View>
+              {(() => {
+                const provider = String(settings.ACTIVE_LLM_PROVIDER ?? "gemini");
+                const providerFields = PROVIDER_FIELDS[provider] ?? [];
+                const apiKeyConfig = getProviderApiKeyConfig(provider);
+                const allFields = [
+                  ...providerFields,
+                  ...(apiKeyConfig
+                    ? [{ key: apiKeyConfig.key, label: "API key", kind: "secret" as FieldKind, placeholder: apiKeyConfig.placeholder }]
+                    : []),
+                ];
+                return allFields.map((field, index) =>
+                  renderFieldRow(field, index + 1, allFields.length + 1),
+                );
+              })()}
+            </AdvancedSubSection>
+          </AdvancedSection>
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
           {errors.map((error) => (
@@ -2345,6 +2321,12 @@ const styles = StyleSheet.create({
   },
   locationValuePlaceholder: {
     color: "#6f6f6f",
+  },
+  phoneLocationLabel: {
+    color: MUTED,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    textAlign: "center",
   },
   nativePickerField: {
     borderRadius: 14,
