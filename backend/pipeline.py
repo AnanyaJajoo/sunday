@@ -494,6 +494,11 @@ async def process_single_email(
     gmail.mark_as_processed(email_data["id"])
     log.info("  → Gmail message marked as processed")
 
+    if Config.agent_mode in ("openclaw", "both"):
+        await _openclaw_notify_email(parsed, subject=email_data.get("subject", ""))
+    if Config.agent_mode in ("builtin", "both"):
+        await _agent.notify_email_event(parsed, subject=email_data.get("subject", ""))
+
     return {
         "email_id": email_data.get("id"),
         "subject": email_data.get("subject"),

@@ -9,7 +9,7 @@ from .config import Config, PROJECT_ROOT
 
 CONFIG_FILE_PATH = PROJECT_ROOT / "config.env"
 
-_AGENT_MODE_OPTIONS = ("off", "openclaw", "builtin")
+_AGENT_MODE_OPTIONS = ("off", "openclaw", "builtin", "both")
 _TRAVEL_TYPE_OPTIONS = ("driving", "walking", "bicycling", "transit")
 _PROVIDER_OPTIONS = tuple(Config.llm_providers.keys())
 _TITLE_DEVICE_OPTIONS = ("auto", "cpu", "mps", "cuda")

@@ -5,7 +5,6 @@ import {
   Dimensions,
   Keyboard,
   LayoutAnimation,
-  PanResponder,
   Pressable,
   Platform,
   ScrollView,
@@ -18,8 +17,10 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { AlertsScreen } from "./src/screens/AlertsScreen";
+import { TodayScreen } from "./src/screens/TodayScreen";
 import {
   SettingsIcon,
+  TodayIcon,
   RecordActiveIcon,
   RecordInactiveIcon,
   AlertIcon,
@@ -44,21 +45,22 @@ const SELECTED_ICON_COLOR = BACKGROUND;
 const INACTIVE_COLOR = "#f4f4f4";
 const RECORD_ACTIVE_COLOR = "#eb4034";
 
-// Order: Settings (0) — Record (1) — Alerts (2)
+// Order: Settings (0) — Today (1) — Record (2) — Alerts (3)
 // Record starts as the active/center screen.
 const TABS = [
   { key: "settings", Icon: SettingsIcon },
+  { key: "today", Icon: TodayIcon },
   { key: "record", Icon: RecordInactiveIcon },
   { key: "alerts", Icon: AlertIcon },
 ] as const;
 
-const INITIAL_INDEX = 1;
+const INITIAL_INDEX = 2;
 const NAV_WIDTH = SCREEN_WIDTH - NAV_SIDE_INSET * 2;
 const NAV_CONTENT_WIDTH = NAV_WIDTH - NAV_HORIZONTAL_PADDING * 2;
 const NAV_ITEM_WIDTH = (NAV_WIDTH - NAV_HORIZONTAL_PADDING * 2) / TABS.length;
 const INDICATOR_WIDTH = NAV_ITEM_WIDTH - INDICATOR_HORIZONTAL_INSET * 2;
 const INDICATOR_EDGE_EXTENSION = 8;
-const RECORD_TAB_INDEX = 1;
+const RECORD_TAB_INDEX = 2;
 
 function getIndicatorTarget(index: number) {
   if (index === 0 || index === TABS.length - 1) {
@@ -120,7 +122,6 @@ function Main() {
   const [isPagerScrollLocked, setIsPagerScrollLocked] = React.useState(false);
   const [alertEntries, setAlertEntries] = React.useState<AlertEntry[]>([]);
   const [entriesHydrated, setEntriesHydrated] = React.useState(false);
-  const navDragIndexRef = React.useRef(activeIndex);
   const indicatorTranslateX = React.useMemo(
     () =>
       scrollX.interpolate({
@@ -191,53 +192,6 @@ function Main() {
       scrollRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
     },
     [animateNavVisibility, navVisible],
-  );
-
-  const clampNavIndex = React.useCallback(
-    (nextIndex: number) => Math.max(0, Math.min(TABS.length - 1, nextIndex)),
-    [],
-  );
-
-  const getNavDragIndex = React.useCallback(
-    (locationX: number) => {
-      const normalizedX = Math.max(0, Math.min(NAV_CONTENT_WIDTH, locationX - NAV_HORIZONTAL_PADDING));
-      return clampNavIndex((normalizedX - NAV_ITEM_WIDTH / 2) / NAV_ITEM_WIDTH);
-    },
-    [clampNavIndex],
-  );
-
-  const finishNavDrag = React.useCallback(
-    (nextIndex: number) => {
-      const roundedIndex = clampNavIndex(Math.round(nextIndex));
-      handleTabPress(roundedIndex);
-    },
-    [clampNavIndex, handleTabPress],
-  );
-
-  const navPanResponder = React.useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onStartShouldSetPanResponderCapture: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponderCapture: () => true,
-        onPanResponderGrant: (event) => {
-          Keyboard.dismiss();
-          const nextIndex = getNavDragIndex(event.nativeEvent.locationX);
-          navDragIndexRef.current = nextIndex;
-        },
-        onPanResponderMove: (event) => {
-          const nextIndex = getNavDragIndex(event.nativeEvent.locationX);
-          navDragIndexRef.current = nextIndex;
-          scrollRef.current?.scrollTo({
-            x: nextIndex * SCREEN_WIDTH,
-            animated: false,
-          });
-        },
-        onPanResponderRelease: () => finishNavDrag(navDragIndexRef.current),
-        onPanResponderTerminate: () => finishNavDrag(navDragIndexRef.current),
-      }),
-    [finishNavDrag, getNavDragIndex],
   );
 
   const handleMomentumEnd = React.useCallback(
@@ -392,7 +346,7 @@ function Main() {
         horizontal
         pagingEnabled
         bounces={false}
-        scrollEnabled={false}
+        scrollEnabled={!isPagerScrollLocked}
         decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -406,6 +360,9 @@ function Main() {
       >
         <View style={styles.page}>
           <SettingsScreen onSegmentInteractionChange={setIsPagerScrollLocked} />
+        </View>
+        <View style={styles.page}>
+          <TodayScreen />
         </View>
         <View style={styles.page}>
           <HomeScreen
@@ -427,67 +384,72 @@ function Main() {
           styles.navBar,
           navBarAnimatedStyle,
         ]}
-        {...navPanResponder.panHandlers}
       >
-        {TABS.map((tab, i) => {
-          return (
-            <Pressable
-              key={tab.key}
-              onPress={() => handleTabPress(i)}
-              style={styles.navItem}
-            >
-              {i === RECORD_TAB_INDEX ? (
-                <RecordTabIcon
-                  size={28}
-                  inactiveColor={INACTIVE_COLOR}
-                  activeColor={RECORD_ACTIVE_COLOR}
-                  progress={recordIconProgress}
-                />
-              ) : (
-                <tab.Icon size={28} color={INACTIVE_COLOR} />
-              )}
-            </Pressable>
-          );
-        })}
+        {/* Layer 1: Inactive icons (visual only) */}
+        {TABS.map((tab, i) => (
+          <View key={tab.key} style={styles.navItem}>
+            {i === RECORD_TAB_INDEX ? (
+              <RecordTabIcon
+                size={28}
+                inactiveColor={INACTIVE_COLOR}
+                activeColor={RECORD_ACTIVE_COLOR}
+                progress={recordIconProgress}
+              />
+            ) : (
+              <tab.Icon size={28} color={INACTIVE_COLOR} />
+            )}
+          </View>
+        ))}
 
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.activeIndicatorShadow,
-          {
-            width: indicatorWidth,
-            transform: [{ translateX: indicatorTranslateX }],
-          },
-        ]}
-      >
-        <View style={styles.activeIndicator}>
+        {/* Layer 2: Sliding indicator with active icons (visual only) */}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <Animated.View
             style={[
-              styles.indicatorIconTrack,
+              styles.activeIndicatorShadow,
               {
-                transform: [{ translateX: indicatorIconTranslateX }],
+                width: indicatorWidth,
+                transform: [{ translateX: indicatorTranslateX }],
               },
             ]}
           >
-            {TABS.map((tab, i) => {
-              return (
-                <View key={`${tab.key}-selected`} style={styles.indicatorIconSlot}>
-                  {i === RECORD_TAB_INDEX ? (
-                    <RecordTabIcon
-                      size={28}
-                      inactiveColor={SELECTED_ICON_COLOR}
-                      activeColor={RECORD_ACTIVE_COLOR}
-                      progress={recordIconProgress}
-                    />
-                  ) : (
-                    <tab.Icon size={28} color={SELECTED_ICON_COLOR} />
-                  )}
-                </View>
-              );
-            })}
+            <View style={styles.activeIndicator}>
+              <Animated.View
+                style={[
+                  styles.indicatorIconTrack,
+                  {
+                    transform: [{ translateX: indicatorIconTranslateX }],
+                  },
+                ]}
+              >
+                {TABS.map((tab, i) => (
+                  <View key={`${tab.key}-selected`} style={styles.indicatorIconSlot}>
+                    {i === RECORD_TAB_INDEX ? (
+                      <RecordTabIcon
+                        size={28}
+                        inactiveColor={SELECTED_ICON_COLOR}
+                        activeColor={RECORD_ACTIVE_COLOR}
+                        progress={recordIconProgress}
+                      />
+                    ) : (
+                      <tab.Icon size={28} color={SELECTED_ICON_COLOR} />
+                    )}
+                  </View>
+                ))}
+              </Animated.View>
+            </View>
           </Animated.View>
         </View>
-      </Animated.View>
+
+        {/* Layer 3: Touch targets (on top, transparent) */}
+        <View style={styles.navTouchLayer}>
+          {TABS.map((tab, i) => (
+            <Pressable
+              key={`${tab.key}-touch`}
+              onPress={() => handleTabPress(i)}
+              style={styles.navTouchItem}
+            />
+          ))}
+        </View>
       </Animated.View>
     </View>
   );
@@ -593,6 +555,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    height: "100%",
+  },
+  navTouchLayer: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "row",
+    zIndex: 10,
+  },
+  navTouchItem: {
+    flex: 1,
     height: "100%",
   },
 });

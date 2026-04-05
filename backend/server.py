@@ -690,9 +690,9 @@ async def transcribe_recording(file: UploadFile = File(...)):
             log.warning("Transcript title generation timed out; using fallback title.")
         log.info("Transcribed recording: %s", transcript)
         log.info("Transcript title: %s", summary)
-        if Config.agent_mode == "openclaw":
+        if Config.agent_mode in ("openclaw", "both"):
             await _openclaw_notify_voice(transcript, summary)
-        elif Config.agent_mode == "builtin":
+        if Config.agent_mode in ("builtin", "both"):
             await _agent.notify_voice_note(transcript, summary)
         return {"text": transcript, "summary": summary}
     except TranscriptionError as exc:
